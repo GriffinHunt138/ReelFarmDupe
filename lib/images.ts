@@ -11,7 +11,7 @@ fs.mkdirSync(CACHE_DIR, { recursive: true });
 export interface ImageResult {
   id: string;
   url: string;        // 736x Pinterest URL for download
-  previewUrl: string; // smaller thumbnail for UI
+  previewUrl: string; // 474x thumbnail for UI
 }
 
 function imageCachePath(query: string, index: number): string {
@@ -19,26 +19,33 @@ function imageCachePath(query: string, index: number): string {
   return path.join(CACHE_DIR, `${hash}.png`);
 }
 
-// Promise cache — parallel calls with same query share one scrape
+// Promise cache — parallel calls with same query share one scrape.
+// Empty results are NOT cached so a bad scrape can be retried.
 const scrapeCache = new Map<string, Promise<ImageResult[]>>();
 
 function getPinterestResults(query: string): Promise<ImageResult[]> {
-  // Always prepend "ugc" unless the caller already did
   const raw = query.trim();
   const ugcQuery = raw.toLowerCase().startsWith('ugc ') ? raw : `ugc ${raw}`;
   const key = ugcQuery.toLowerCase();
   if (scrapeCache.has(key)) return scrapeCache.get(key)!;
-  const promise = runPinterestScrape(ugcQuery);
+
+  const promise = runPinterestScrape(ugcQuery).then(results => {
+    if (results.length === 0) scrapeCache.delete(key); // allow retry on empty
+    return results;
+  });
+
   scrapeCache.set(key, promise);
   return promise;
 }
 
-async function runPinterestScrape(query: string, count = 20): Promise<ImageResult[]> {
+async function runPinterestScrape(query: string, count = 24): Promise<ImageResult[]> {
   const browser = await chromium.launch({ headless: true });
   try {
     const context = await browser.newContext({
       viewport: { width: 1280, height: 900 },
-      userAgent: 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+      userAgent:
+        'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 ' +
+        '(KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
       locale: 'en-US',
       extraHTTPHeaders: { 'Accept-Language': 'en-US,en;q=0.9' },
     });
@@ -49,50 +56,69 @@ async function runPinterestScrape(query: string, count = 20): Promise<ImageResul
 
     const page = await context.newPage();
 
-    await page.goto(
-      `https://www.pinterest.com/search/pins/?q=${encodeURIComponent(query)}&rs=typed`,
-      { waitUntil: 'domcontentloaded', timeout: 30000 },
-    );
+    const searchUrl =
+      `https://www.pinterest.com/search/pins/?q=${encodeURIComponent(query)}&rs=typed`;
 
-    // Wait for pin grid to populate
-    await page.waitForSelector('img[src*="pinimg.com"]', { timeout: 20000 }).catch(() => {});
+    await page.goto(searchUrl, { waitUntil: 'domcontentloaded', timeout: 30000 });
 
-    // Scroll to trigger lazy-load for more images
-    await page.evaluate(() => window.scrollBy(0, 800));
-    await page.waitForTimeout(1500);
+    // Log where we actually landed — helps debug redirects
+    console.log(`[pinterest] navigated to: ${page.url()}`);
 
-    const results: ImageResult[] = await page.evaluate((targetCount: number) => {
-      const imgs = Array.from(document.querySelectorAll<HTMLImageElement>('img[src*="pinimg.com"]'));
-      const seen = new Set<string>();
-      const out: ImageResult[] = [];
+    // Wait until at least 8 pin images are in the DOM.
+    // This ensures actual search results have rendered, not just the page shell.
+    await page
+      .waitForFunction(
+        () => document.querySelectorAll('img[src*="pinimg.com"]').length >= 8,
+        { timeout: 20000 },
+      )
+      .catch(() => {
+        console.warn('[pinterest] timed out waiting for 8 images — collecting whatever is there');
+      });
 
-      for (const img of imgs) {
-        const src = img.src;
-        if (!src) continue;
+    // Helper: grab all pinimg.com srcs currently in the DOM
+    async function collectFromDom(): Promise<string[]> {
+      return page.evaluate(() =>
+        Array.from(document.querySelectorAll<HTMLImageElement>('img[src*="pinimg.com"]'))
+          .map(img => img.src)
+          .filter(src => {
+            if (!src) return false;
+            // Skip avatar / icon sizes
+            if (/\/(30x|75x|60x|45x|170x)\//.test(src)) return false;
+            return true;
+          }),
+      );
+    }
 
-        // Skip known-small sizes (avatars, icons, tiny thumbs)
-        if (/\/(30x|75x|60x|45x|170x)/.test(src)) continue;
+    const allSrcs = new Set<string>();
+    for (const s of await collectFromDom()) allSrcs.add(s);
 
-        // Filter by actual rendered dimensions — skip images that loaded too small
-        // naturalWidth reflects the true source pixel width
-        if (img.naturalWidth > 0 && img.naturalWidth < 400) continue;
-        if (img.naturalHeight > 0 && img.naturalHeight < 400) continue;
+    // Scroll down in steps, collecting new images each time
+    for (let step = 1; step <= 5; step++) {
+      await page.evaluate((y: number) => window.scrollTo(0, y), step * 1000);
+      await page.waitForTimeout(900);
+      for (const s of await collectFromDom()) allSrcs.add(s);
+    }
 
-        // Deduplicate by path without size segment
-        const baseKey = src.replace(/\/\d+x\d*\//, '/SIZE/');
-        if (seen.has(baseKey)) continue;
-        seen.add(baseKey);
+    // Deduplicate by base path (ignore size segment) and build results
+    const seenBase = new Set<string>();
+    const results: ImageResult[] = [];
 
-        // originals/ for highest quality download; 474x for a crisp preview thumbnail
-        const fullUrl    = src.replace(/\/\d+x\d*\//, '/originals/');
-        const previewUrl = src.replace(/\/\d+x\d*\//, '/474x/');
+    for (const src of allSrcs) {
+      const base = src.replace(/\/\d+x\d*\//, '/SIZE/').split('?')[0];
+      if (seenBase.has(base)) continue;
+      seenBase.add(base);
 
-        out.push({ id: String(out.length), url: fullUrl, previewUrl });
-        if (out.length >= targetCount) break;
-      }
-      return out;
-    }, count);
+      results.push({
+        id: String(results.length),
+        // 736x is reliably accessible and high enough quality for 1080p slides
+        url:        src.replace(/\/\d+x\d*\//, '/736x/'),
+        previewUrl: src.replace(/\/\d+x\d*\//, '/474x/'),
+      });
 
+      if (results.length >= count) break;
+    }
+
+    console.log(`[pinterest] "${query}" → ${results.length} results`);
     return results;
   } finally {
     await browser.close();
@@ -108,27 +134,24 @@ export async function fetchAndCropImage(query: string, index = 0): Promise<strin
 
   const photo = results[index % results.length];
 
-  // Try originals/ first; fall back to 736x if the CDN returns 403/404
-  const fallbackUrl = photo.url.replace('/originals/', '/736x/');
+  const headers = {
+    'User-Agent':
+      'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 ' +
+      '(KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+    'Referer': 'https://www.pinterest.com/',
+  };
+
   let buffer: Buffer;
   try {
     const res = await axios.get<ArrayBuffer>(photo.url, {
-      responseType: 'arraybuffer',
-      headers: {
-        'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
-        'Referer': 'https://www.pinterest.com/',
-      },
-      timeout: 15000,
+      responseType: 'arraybuffer', headers, timeout: 15000,
     });
     buffer = Buffer.from(res.data);
   } catch {
-    const res = await axios.get<ArrayBuffer>(fallbackUrl, {
-      responseType: 'arraybuffer',
-      headers: {
-        'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
-        'Referer': 'https://www.pinterest.com/',
-      },
-      timeout: 15000,
+    // 736x failed — fall back to 474x
+    const fallback = photo.url.replace('/736x/', '/474x/');
+    const res = await axios.get<ArrayBuffer>(fallback, {
+      responseType: 'arraybuffer', headers, timeout: 15000,
     });
     buffer = Buffer.from(res.data);
   }
@@ -152,15 +175,18 @@ export async function cropImageFromUrl(url: string): Promise<string> {
   if (fs.existsSync(cachePath)) return cachePath;
 
   const headers = {
-    'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+    'User-Agent':
+      'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 ' +
+      '(KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
     'Referer': 'https://www.pinterest.com/',
   };
+
   let buffer: Buffer;
   try {
     const res = await axios.get<ArrayBuffer>(url, { responseType: 'arraybuffer', headers, timeout: 15000 });
     buffer = Buffer.from(res.data);
   } catch {
-    const fallback = url.replace('/originals/', '/736x/');
+    const fallback = url.replace(/\/\d+x\d*\//, '/474x/');
     const res = await axios.get<ArrayBuffer>(fallback, { responseType: 'arraybuffer', headers, timeout: 15000 });
     buffer = Buffer.from(res.data);
   }

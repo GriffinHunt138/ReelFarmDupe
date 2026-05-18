@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=1080" />
   <title>ReelFarm Slide</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
-  <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Inter:wght@400;600;700&family=Anton&display=swap" rel="stylesheet" />
+  <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Inter:wght@400;600;700;800&family=Anton&family=Oswald:wght@400;600;700&family=Playfair+Display:ital,wght@0,400;0,700;0,900;1,400&family=Montserrat:wght@400;700;900&display=swap" rel="stylesheet" />
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
@@ -31,14 +31,7 @@
       background-repeat: no-repeat;
     }
 
-    .grain {
-      position: absolute;
-      inset: 0;
-      opacity: 0.18;
-      pointer-events: none;
-      background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 512 512' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)'/%3E%3C/svg%3E");
-      background-size: 256px 256px;
-    }
+    /* grain removed — SVG feTurbulence tiling created visible seam lines */
 
     .overlay { position: absolute; inset: 0; }
 
@@ -63,40 +56,27 @@
     }
 
     /* ── Shared text block — positioned via inline style from render.ts ── */
+    /*
+     * Width 780px keeps the right edge at x=930 when centred at x=540.
+     * This avoids TikTok's right-side overlay (likes, comments, profile).
+     * Maths: 540 + 390 = 930  |  540 − 390 = 150 (symmetric safe margins).
+     */
     .text-block {
       position: absolute;
       z-index: 10;
       text-align: center;
-      width: 960px;
+      width: 780px;
       /* left/top set inline */
       transform: translate(-50%, -50%);
     }
 
-    .slide-number {
-      font-family: 'Inter', sans-serif;
-      font-size: 24px;
-      font-weight: 600;
-      letter-spacing: 6px;
-      text-transform: uppercase;
-      color: rgba(255,255,255,0.5);
-      margin-bottom: 20px;
-    }
-
-    .accent-line {
-      width: 60px;
-      height: 4px;
-      background: rgba(255,255,255,0.6);
-      border-radius: 2px;
-      margin: 0 auto 28px;
-    }
-
-    /* ── Polished headline (Bebas Neue) ── */
+    /* ── Polished headline (Bebas Neue default, overridden by inline style) ── */
     .headline {
       font-family: 'Bebas Neue', sans-serif;
       font-size: 128px;
       line-height: 1.0;
       letter-spacing: 3px;
-      color: #ffffff; /* overridden inline */
+      color: #ffffff;
       text-shadow: 0 4px 32px rgba(0,0,0,0.9), 0 2px 8px rgba(0,0,0,0.7);
       word-break: break-word;
     }
@@ -114,15 +94,14 @@
     }
 
     /* ── Organic Raw — Inter font, natural feel, photo breathes ── */
-    .template-organic-raw .slide-number { display: none; }
-    .template-organic-raw .accent-line  { display: none; }
-    .template-organic-raw .grain        { display: none; }
 
     .template-organic-raw .headline {
-      font-family: 'Inter', sans-serif;
+      font-family: 'Montserrat', sans-serif;
       font-size: 88px;
-      font-weight: 800;
-      letter-spacing: -2px;
+      font-weight: 900;
+      letter-spacing: -1px;
+      /* Overlap formula: line_height_px < font_size + 2×padding              */
+      /* = (1.1 × 88) = 96.8 < 88 + 24 = 112 → 15px overlap → lines merge   */
       line-height: 1.1;
       text-transform: none;
       color: #ffffff;
@@ -134,20 +113,18 @@
     .template-organic-raw .headline.very-long { font-size: 56px; }
 
     .template-organic-raw .body-text {
-      font-family: 'Inter', sans-serif;
-      font-size: 44px;
+      font-family: 'Montserrat', sans-serif;
+      font-size: 40px;
       font-weight: 500;
-      line-height: 1.5;
-      letter-spacing: -0.5px;
+      line-height: 1.6;
+      letter-spacing: -0.3px;
       color: rgba(255,255,255,0.92);
       text-shadow: 0 1px 12px rgba(0,0,0,0.6);
-      margin-top: 36px;
+      margin-top: 40px;
     }
 
     /* ── Template colour accents ── */
-    .template-moody-warm   .accent-line { background: rgba(255,160,80,0.8); }
-    .template-winter-arc   .accent-line { background: rgba(100,160,255,0.8); }
-    .template-dark-academia .accent-line { background: rgba(200,170,100,0.8); }
+    /* (accent-line removed) */
 
     /* ── Text style presets — applied via <span class="ts-*"> wrapper ── */
     .ts-default    {}
@@ -155,29 +132,45 @@
     .ts-white-text { color: #fff !important; }
     .ts-black-text { color: #000 !important; text-shadow: none !important; }
     .ts-yellow-text { color: #FFE600 !important; }
+
+    /*
+     * Pill backgrounds use display:inline-block so the pill hugs the full
+     * text block as one clean shape — no per-line clone artifacts, no text
+     * cutoff. Short text → pill; multi-line text → rounded rectangle.
+     * max-width keeps it inside the 960px text-block container.
+     */
     .ts-white-bg {
       color: #000 !important; background: #fff;
-      padding: 6px 28px; border-radius: 10px;
-      text-shadow: none !important; display: inline-block;
-      -webkit-box-decoration-break: clone; box-decoration-break: clone;
+      padding: 14px 36px; border-radius: 18px;
+      text-shadow: none !important;
+      display: inline-block; max-width: 100%;
     }
     .ts-white-50-bg {
-      color: #fff !important; background: rgba(255,255,255,0.5);
-      padding: 6px 28px; border-radius: 10px;
-      text-shadow: none !important; display: inline-block;
-      -webkit-box-decoration-break: clone; box-decoration-break: clone;
+      color: #fff !important; background: rgba(255,255,255,0.55);
+      padding: 14px 36px; border-radius: 18px;
+      text-shadow: none !important;
+      display: inline-block; max-width: 100%;
     }
     .ts-black-bg {
       color: #fff !important; background: #000;
-      padding: 6px 28px; border-radius: 10px;
-      text-shadow: none !important; display: inline-block;
-      -webkit-box-decoration-break: clone; box-decoration-break: clone;
+      padding: 14px 36px; border-radius: 18px;
+      text-shadow: none !important;
+      display: inline-block; max-width: 100%;
     }
     .ts-black-50-bg {
-      color: #fff !important; background: rgba(0,0,0,0.5);
-      padding: 6px 28px; border-radius: 10px;
-      text-shadow: none !important; display: inline-block;
-      -webkit-box-decoration-break: clone; box-decoration-break: clone;
+      color: #fff !important; background: rgba(0,0,0,0.6);
+      padding: 14px 36px; border-radius: 18px;
+      text-shadow: none !important;
+      display: inline-block; max-width: 100%;
+    }
+
+    /* Body text pills are more compact */
+    .body-text .ts-white-bg,
+    .body-text .ts-white-50-bg,
+    .body-text .ts-black-bg,
+    .body-text .ts-black-50-bg {
+      padding: 8px 24px;
+      border-radius: 12px;
     }
 
     /* ── Bottom branding ── */
@@ -200,13 +193,10 @@
 
     <div class="bg" style="background-image: url('{{IMAGE_URL}}');"></div>
     <div class="overlay overlay-{{OVERLAY_STYLE}}"></div>
-    <div class="grain"></div>
 
     <!-- Headline block -->
     <div class="text-block" style="left: {{HL_X_PCT}}%; top: {{HL_Y_PCT}}%;">
-      <div class="slide-number">{{SLIDE_NUMBER}}</div>
-      <div class="accent-line"></div>
-      <div class="headline {{HEADLINE_SIZE_CLASS}}">{{HL_HTML}}</div>
+      <div class="headline {{HEADLINE_SIZE_CLASS}}" style="{{HL_FONT_OVERRIDE}}">{{HL_HTML}}</div>
     </div>
 
     <!-- Body block -->

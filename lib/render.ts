@@ -1,14 +1,16 @@
 import { chromium } from 'playwright';
+import axios from 'axios';
 import path from 'path';
 import fs from 'fs';
+import { buildSlideHtml, SlideHtmlData } from './buildSlideHtml';
 
 export interface SlideData {
   headline: string;
   headlineHtml?: string;
   bodyHtml?: string;
-  image_url: string;
+  /** Pinterest image URL (736x). Will be fetched and embedded as base64. */
+  imageUrl: string;
   overlay_style: string;
-  slide_number: string;
   template: string;
   hlX?: number;
   hlY?: number;
@@ -16,49 +18,64 @@ export interface SlideData {
   bodyY?: number;
   hlStyle?: string;
   bodyStyle?: string;
+  hlFont?: string;
+  bodyFont?: string;
+  hlFontSize?: number;
+  bodyFontSize?: number;
 }
 
-function headlineSizeClass(text: string): string {
-  const plain = text.replace(/<[^>]*>/g, '');
-  if (plain.length > 60) return 'very-long';
-  if (plain.length > 35) return 'long';
-  return '';
-}
+const HEADERS = {
+  'User-Agent':
+    'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 ' +
+    '(KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+  'Referer': 'https://www.pinterest.com/',
+};
 
-function buildSlideHtml(slide: SlideData): string {
-  const templatePath = path.join(process.cwd(), 'templates', 'slide.html');
-  let html = fs.readFileSync(templatePath, 'utf-8');
-
-  let imageDataUrl = '';
-  if (slide.image_url && fs.existsSync(slide.image_url)) {
-    const buf = fs.readFileSync(slide.image_url);
-    imageDataUrl = `data:image/png;base64,${buf.toString('base64')}`;
+/**
+ * Download an image and return it as a base64 data URI.
+ * We embed the raw bytes — no resizing — so CSS `background-size:cover;
+ * background-position:center` in slide.html does the cropping, matching the
+ * browser iframe preview exactly.
+ */
+async function toDataUri(url: string): Promise<string> {
+  if (!url) return '';
+  // If it's already a data URI (e.g. test fixtures), pass through.
+  if (url.startsWith('data:')) return url;
+  // If it's a local file path, read directly.
+  if (fs.existsSync(url)) {
+    const buf = fs.readFileSync(url);
+    return `data:image/jpeg;base64,${buf.toString('base64')}`;
   }
-
-  const hlHtml   = slide.headlineHtml ?? slide.headline;
-  const bodyHtml = slide.bodyHtml ?? '';
-  const hlStyle   = slide.hlStyle   ?? 'default';
-  const bodyStyle = slide.bodyStyle ?? 'default';
-
-  const bodyBlock = bodyHtml
-    ? `<div class="text-block" style="left:${slide.bodyX ?? 50}%;top:${slide.bodyY ?? 68}%;"><div class="body-text"><span class="ts-${bodyStyle}">${bodyHtml}</span></div></div>`
-    : '';
-
-  html = html
-    .replace(/\{\{TEMPLATE\}\}/g, slide.template)
-    .replace(/\{\{IMAGE_URL\}\}/g, imageDataUrl)
-    .replace(/\{\{OVERLAY_STYLE\}\}/g, slide.overlay_style)
-    .replace(/\{\{SLIDE_NUMBER\}\}/g, slide.slide_number)
-    .replace(/\{\{HL_HTML\}\}/g, `<span class="ts-${hlStyle}">${hlHtml}</span>`)
-    .replace(/\{\{HEADLINE_SIZE_CLASS\}\}/g, headlineSizeClass(hlHtml))
-    .replace(/\{\{HL_X_PCT\}\}/g, String(slide.hlX ?? 50))
-    .replace(/\{\{HL_Y_PCT\}\}/g, String(slide.hlY ?? 45))
-    .replace(/\{\{BODY_BLOCK\}\}/g, bodyBlock);
-
-  return html;
+  try {
+    const res = await axios.get<ArrayBuffer>(url, {
+      responseType: 'arraybuffer', headers: HEADERS, timeout: 15000,
+    });
+    const buf = Buffer.from(res.data);
+    // Detect mime type from magic bytes
+    const mime = buf[0] === 0xff && buf[1] === 0xd8 ? 'image/jpeg'
+               : buf[0] === 0x89 ? 'image/png'
+               : 'image/jpeg';
+    return `data:${mime};base64,${buf.toString('base64')}`;
+  } catch {
+    // Fall back to 474x version
+    const fallback = url.replace(/\/\d+x\d*\//, '/474x/');
+    try {
+      const res = await axios.get<ArrayBuffer>(fallback, {
+        responseType: 'arraybuffer', headers: HEADERS, timeout: 15000,
+      });
+      const buf = Buffer.from(res.data);
+      return `data:image/jpeg;base64,${buf.toString('base64')}`;
+    } catch {
+      console.warn('[render] failed to fetch image:', url);
+      return '';
+    }
+  }
 }
 
 export async function renderSlides(slides: SlideData[], postTitle: string): Promise<string[]> {
+  const templatePath = path.join(process.cwd(), 'templates', 'slide.html');
+  const template = fs.readFileSync(templatePath, 'utf-8');
+
   const safeTitle = postTitle
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, '-')
@@ -69,14 +86,43 @@ export async function renderSlides(slides: SlideData[], postTitle: string): Prom
   fs.mkdirSync(outputDir, { recursive: true });
 
   const browser = await chromium.launch({ headless: true });
-  const context = await browser.newContext({ viewport: { width: 1080, height: 1920 }, deviceScaleFactor: 1 });
+  const context = await browser.newContext({
+    viewport: { width: 1080, height: 1920 },
+    deviceScaleFactor: 1,
+  });
   const outputPaths: string[] = [];
 
   for (let i = 0; i < slides.length; i++) {
-    const html = buildSlideHtml(slides[i]);
+    const slide = slides[i];
+
+    // Embed the image as base64 so Playwright doesn't need to fetch it.
+    // We pass the raw bytes — CSS handles the cover/center crop identically
+    // to how the browser renders the iframe preview.
+    const imageDataUri = await toDataUri(slide.imageUrl);
+
+    const data: SlideHtmlData = {
+      overlayStyle:  slide.overlay_style ?? 'dark-cinematic',
+      imageUrl:      imageDataUri,
+      headlineHtml:  slide.headlineHtml ?? slide.headline,
+      hlStyle:       slide.hlStyle,
+      hlX:           slide.hlX,
+      hlY:           slide.hlY,
+      hlFont:        slide.hlFont,
+      hlFontSize:    slide.hlFontSize,
+      bodyHtml:      slide.bodyHtml,
+      bodyStyle:     slide.bodyStyle,
+      bodyX:         slide.bodyX,
+      bodyY:         slide.bodyY,
+      bodyFont:      slide.bodyFont,
+      bodyFontSize:  slide.bodyFontSize,
+    };
+
+    const html = buildSlideHtml(template, data);
+
     const page = await context.newPage();
     await page.setContent(html, { waitUntil: 'networkidle' });
-    await page.waitForTimeout(800);
+    // Wait for Google Fonts to finish loading
+    await page.waitForTimeout(1000);
 
     const filePath = path.join(outputDir, `slide-${String(i + 1).padStart(2, '0')}.png`);
     await page.screenshot({ path: filePath, clip: { x: 0, y: 0, width: 1080, height: 1920 } });

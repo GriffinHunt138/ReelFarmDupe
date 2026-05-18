@@ -26,22 +26,23 @@ interface Slideshow {
 }
 
 export default function Home() {
-  const [topic,     setTopic]     = useState('');
-  const [niche,     setNiche]     = useState('');
-  const [tone,      setTone]      = useState('');
-  const [template,  setTemplate]  = useState('Dark Cinematic');
+  const [topic,      setTopic]      = useState('');
+  const [niche,      setNiche]      = useState('');
+  const [tone,       setTone]       = useState('');
+  const [template,   setTemplate]   = useState('Dark Cinematic');
   const [slideCount, setSlideCount] = useState(5);
 
-  const [slideshow,   setSlideshow]   = useState<Slideshow | null>(null);
-  const [generating,  setGenerating]  = useState(false);
-  const [genError,    setGenError]    = useState('');
+  const [slideshow,  setSlideshow]  = useState<Slideshow | null>(null);
+  const [generating, setGenerating] = useState(false);
+  const [genError,   setGenError]   = useState('');
 
-  const [rendering,   setRendering]   = useState(false);
-  const [previews,    setPreviews]    = useState<string[]>([]);
-  const [postId,      setPostId]      = useState<number | null>(null);
-  const [outputDir,   setOutputDir]   = useState<string | null>(null);
-  const [slidePaths,  setSlidePaths]  = useState<string[]>([]);
-  const [renderError, setRenderError] = useState('');
+  const [downloading,  setDownloading]  = useState(false);
+  const [downloadDone, setDownloadDone] = useState(false);
+  const [savedZipPath, setSavedZipPath] = useState<string | null>(null);
+  const [postId,       setPostId]       = useState<number | null>(null);
+  const [outputDir,    setOutputDir]    = useState<string | null>(null);
+  const [slidePaths,   setSlidePaths]   = useState<string[]>([]);
+  const [renderError,  setRenderError]  = useState('');
 
   const [imageUrls,          setImageUrls]          = useState<string[]>([]);
   const [textCustomizations, setTextCustomizations] = useState<TextCustomization[]>([]);
@@ -74,10 +75,11 @@ export default function Home() {
     if (!topic.trim()) return;
     setGenerating(true);
     setGenError('');
-    setPreviews([]);
     setImageUrls([]);
     setPostId(null);
     setShowExport(false);
+    setDownloadDone(false);
+    setSavedZipPath(null);
 
     try {
       const res  = await fetch('/api/generate', {
@@ -88,29 +90,50 @@ export default function Home() {
       const data = await res.json();
       if (data.error) throw new Error(data.error);
       setSlideshow(data.slideshow);
+
       const isOrganic = template === 'Organic Raw';
       setTextCustomizations(
         (data.slideshow.slides as Slide[]).map((s, i) => ({
           headlineHtml: i === 0 ? topic : s.headline,
           bodyHtml:     s.body ?? '',
-          hlX: 50, hlY: i === 0 ? 30 : 28,
-          bodyX: 50, bodyY: i === 0 ? 58 : 60,
-          hlStyle:   (isOrganic ? 'white-bg'    : 'default') as TextStyle,
-          bodyStyle: (isOrganic ? 'white-text'  : 'default') as TextStyle,
+          // Organic Raw: text centred in the middle of the frame with
+          // breathing room between headline and body (matches screenshot).
+          // Other templates: headline higher, body below.
+          hlX:   50,
+          hlY:   isOrganic ? 38 : (i === 0 ? 30 : 28),
+          bodyX: 50,
+          bodyY: isOrganic ? 62 : (i === 0 ? 58 : 60),
+          // Organic Raw: plain white text — no pill, photo breathes.
+          hlStyle:   'default' as TextStyle,
+          bodyStyle: 'default' as TextStyle,
+          hlFont:   isOrganic ? 'montserrat' : 'bebas',
+          bodyFont: isOrganic ? 'montserrat' : 'inter',
         }))
       );
 
-      // Fetch Pinterest preview thumbnails in the background (one per slide)
+      // Fetch Pinterest images and persist both preview + full URLs
       const slides = data.slideshow.slides as Slide[];
       Promise.all(
         slides.map(async (slide: Slide) => {
           try {
             const r    = await fetch(`/api/images?query=${encodeURIComponent(slide.image_search)}&mode=search&count=1`);
             const json = await r.json();
-            return (json.photos?.[0]?.previewUrl as string) ?? '';
-          } catch { return ''; }
+            const photo = json.photos?.[0];
+            return {
+              previewUrl: (photo?.previewUrl as string) ?? '',
+              imageUrl:   (photo?.url       as string) ?? '',
+            };
+          } catch { return { previewUrl: '', imageUrl: '' }; }
         })
-      ).then(urls => setImageUrls(urls));
+      ).then(photos => {
+        setImageUrls(photos.map(p => p.imageUrl || p.previewUrl));
+        setTextCustomizations(prev => prev.map((c, i) => ({
+          ...c,
+          previewUrl: photos[i]?.previewUrl || c.previewUrl,
+          imageUrl:   photos[i]?.imageUrl   || c.imageUrl,
+        })));
+      });
+
     } catch (e: unknown) {
       setGenError(e instanceof Error ? e.message : 'Generation failed');
     } finally {
@@ -118,38 +141,52 @@ export default function Home() {
     }
   }
 
-  async function renderSlides() {
+  async function downloadSlides() {
     if (!slideshow) return;
-    setRendering(true);
+    setDownloading(true);
     setRenderError('');
-    setPreviews([]);
+    setDownloadDone(false);
+    setSavedZipPath(null);
 
     try {
-      const res  = await fetch('/api/render', {
+      // Step 1: render PNGs with Playwright
+      const renderRes = await fetch('/api/render', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          title: slideshow.title,
+          title:              slideshow.title,
           template,
           niche,
           tone,
-          caption:   slideshow.caption,
-          hashtags:  slideshow.hashtags,
-          slides:    slideshow.slides,
+          caption:            slideshow.caption,
+          hashtags:           slideshow.hashtags,
+          slides:             slideshow.slides,
           textCustomizations,
         }),
       });
-      const data = await res.json();
-      if (data.error) throw new Error(data.error);
-      setPreviews(data.previews);
-      setPostId(data.post_id);
-      setOutputDir(data.output_dir);
-      setSlidePaths(data.slide_paths);
+      const renderData = await renderRes.json();
+      if (renderData.error) throw new Error(renderData.error);
+
+      setPostId(renderData.post_id);
+      setOutputDir(renderData.output_dir);
+      setSlidePaths(renderData.slide_paths);
       setShowExport(true);
+
+      // Step 2: zip the PNGs and save to ~/Desktop/slideshows/ (same as before)
+      const zipRes = await fetch('/api/export/zip', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ slidePaths: renderData.slide_paths, title: slideshow.title }),
+      });
+      const zipData = await zipRes.json();
+      if (zipData.error) throw new Error(zipData.error);
+
+      setSavedZipPath(zipData.zipPath);
+      setDownloadDone(true);
     } catch (e: unknown) {
-      setRenderError(e instanceof Error ? e.message : 'Render failed');
+      setRenderError(e instanceof Error ? e.message : 'Download failed');
     } finally {
-      setRendering(false);
+      setDownloading(false);
     }
   }
 
@@ -178,7 +215,7 @@ export default function Home() {
         <aside className="w-[360px] flex-shrink-0">
           <div className="sticky top-24 space-y-6 pb-10">
 
-            {/* Step 1: Idea & Topic */}
+            {/* Step 1 */}
             <section className="space-y-4">
               <div className="flex items-center gap-2">
                 <div className="w-5 h-5 rounded-full bg-gray-900 text-white flex items-center justify-center text-[10px] font-black">1</div>
@@ -189,7 +226,7 @@ export default function Home() {
                 <div className="space-y-1">
                   <label className="text-[10px] text-gray-400 uppercase tracking-widest">Niche</label>
                   <select value={niche} onChange={e => setNiche(e.target.value)}
-                    className="w-full bg-white border border-gray-200 rounded-lg px-2.5 py-2 text-xs text-gray-900 focus:outline-none focus:border-gray-400 transition-colors">
+                    className="w-full bg-white border border-gray-200 rounded-lg px-2.5 py-2 text-xs text-gray-900 focus:outline-none focus:border-gray-400">
                     <option value="">Any</option>
                     {NICHES.map(n => <option key={n} value={n}>{n}</option>)}
                   </select>
@@ -197,7 +234,7 @@ export default function Home() {
                 <div className="space-y-1">
                   <label className="text-[10px] text-gray-400 uppercase tracking-widest">Tone</label>
                   <select value={tone} onChange={e => setTone(e.target.value)}
-                    className="w-full bg-white border border-gray-200 rounded-lg px-2.5 py-2 text-xs text-gray-900 focus:outline-none focus:border-gray-400 transition-colors">
+                    className="w-full bg-white border border-gray-200 rounded-lg px-2.5 py-2 text-xs text-gray-900 focus:outline-none focus:border-gray-400">
                     <option value="">Any</option>
                     {TONES.map(t => <option key={t} value={t}>{t}</option>)}
                   </select>
@@ -205,7 +242,7 @@ export default function Home() {
                 <div className="space-y-1">
                   <label className="text-[10px] text-gray-400 uppercase tracking-widest">Slides</label>
                   <select value={slideCount} onChange={e => setSlideCount(Number(e.target.value))}
-                    className="w-full bg-white border border-gray-200 rounded-lg px-2.5 py-2 text-xs text-gray-900 focus:outline-none focus:border-gray-400 transition-colors">
+                    className="w-full bg-white border border-gray-200 rounded-lg px-2.5 py-2 text-xs text-gray-900 focus:outline-none focus:border-gray-400">
                     {SLIDE_COUNTS.map(n => <option key={n} value={n}>{n} slides</option>)}
                   </select>
                 </div>
@@ -228,13 +265,13 @@ export default function Home() {
                   onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); generate(); }}}
                   placeholder="e.g. 5 signs you need to fix your sleep schedule"
                   rows={3}
-                  className="w-full bg-white border border-gray-200 rounded-xl px-3 py-2.5 text-sm text-gray-900 placeholder:text-gray-300 focus:outline-none focus:border-gray-400 transition-colors resize-none"
+                  className="w-full bg-white border border-gray-200 rounded-xl px-3 py-2.5 text-sm text-gray-900 placeholder:text-gray-300 focus:outline-none focus:border-gray-400 resize-none"
                 />
                 {genError && <p className="text-red-500 text-xs">{genError}</p>}
               </div>
             </section>
 
-            {/* Step 2: Template */}
+            {/* Step 2 */}
             <section className="space-y-3">
               <div className="flex items-center gap-2">
                 <div className="w-5 h-5 rounded-full bg-gray-900 text-white flex items-center justify-center text-[10px] font-black">2</div>
@@ -243,7 +280,7 @@ export default function Home() {
               <TemplatePicker value={template} onChange={setTemplate} />
             </section>
 
-            {/* Generate */}
+            {/* Generate button */}
             <button
               onClick={generate}
               disabled={generating || !topic.trim()}
@@ -257,28 +294,34 @@ export default function Home() {
               ) : '✦ Generate Slides'}
             </button>
 
-            {/* Render */}
+            {/* Download button */}
             {slideshow && (
               <button
-                onClick={renderSlides}
-                disabled={rendering}
+                onClick={downloadSlides}
+                disabled={downloading}
                 className="w-full bg-white hover:bg-gray-50 border border-gray-300 text-gray-800 font-semibold text-sm py-3 rounded-xl transition-all disabled:opacity-50 flex items-center justify-center gap-2"
               >
-                {rendering ? (
+                {downloading ? (
                   <>
                     <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>
-                    Rendering PNGs…
+                    Rendering…
                   </>
-                ) : '⬇ Render & Export'}
+                ) : downloadDone ? '✓ Download Again' : '⬇ Download Slides'}
               </button>
             )}
 
-            {rendering && (
+            {downloading && (
               <p className="text-gray-400 text-xs text-center">Rendering 1080×1920 slides… ~30s</p>
+            )}
+            {downloadDone && savedZipPath && (
+              <div className="bg-green-50 border border-green-200 rounded-lg px-3 py-2">
+                <p className="text-green-700 text-xs font-medium">✓ Saved to Desktop/slideshows/</p>
+                <p className="text-green-600 text-[10px] mt-0.5 break-all opacity-70">{savedZipPath.split('/').slice(-1)[0]}</p>
+              </div>
             )}
             {renderError && <p className="text-red-500 text-xs">{renderError}</p>}
 
-            {/* Slideshow meta */}
+            {/* Caption + hashtags */}
             {slideshow && (
               <div className="bg-white border border-gray-200 rounded-xl p-3 space-y-2">
                 <div>
@@ -293,7 +336,7 @@ export default function Home() {
               </div>
             )}
 
-            {/* Export panel */}
+            {/* Step 3: Export */}
             {showExport && (
               <div className="space-y-3">
                 <div className="flex items-center gap-2">
@@ -304,7 +347,7 @@ export default function Home() {
                   postId={postId}
                   outputDir={outputDir}
                   slidePaths={slidePaths}
-                  previews={previews}
+                  previews={[]}
                   tiktokConnected={tiktokConnected}
                   title={slideshow?.title}
                 />
@@ -324,7 +367,7 @@ export default function Home() {
               next[i] = c;
               return next;
             })}
-            loading={rendering}
+            loading={downloading}
           />
         </main>
       </div>
