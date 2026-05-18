@@ -21,8 +21,9 @@ export interface TextCustomization {
   bodyFont?: FontKey;
   hlFontSize?: number;    // px — overrides auto-size when set
   bodyFontSize?: number;  // px — overrides default body size when set
-  imageUrl?: string;    // 736x Pinterest URL used for both preview AND export
-  previewUrl?: string;  // 474x thumbnail (kept for backward compat, prefer imageUrl)
+  textBoxWidth?: number;  // px width for text blocks (default 780)
+  imageUrl?: string;      // 736x Pinterest URL used for both preview AND export
+  previewUrl?: string;    // 474x thumbnail (kept for backward compat, prefer imageUrl)
 }
 
 interface SlideData {
@@ -296,6 +297,7 @@ export default function PreviewEditor({ slides, imageUrls, textCustomizations, o
         bodyY:         c.bodyY,
         bodyFont:      c.bodyFont,
         bodyFontSize:  c.bodyFontSize,
+        textBoxWidth:  c.textBoxWidth,
       });
     });
   }, [template, slides, textCustomizations, localImageUrls, imageUrls]);
@@ -475,6 +477,23 @@ export default function PreviewEditor({ slides, imageUrls, textCustomizations, o
                 onChange={v => commitChange(activeSlide, { hlFontSize: v })}
               />
             </div>
+          </div>
+
+          {/* Text box width */}
+          <div className="pt-1 border-t border-gray-100 flex items-center gap-3">
+            <span className="text-[10px] text-gray-500 uppercase tracking-widest font-medium flex-shrink-0">Box Width</span>
+            <SizeStepper
+              value={activeCustom.textBoxWidth ?? 780}
+              min={200} max={1020} step={20}
+              onChange={v => commitChange(activeSlide, { textBoxWidth: v })}
+            />
+            <span className="text-[10px] text-gray-400">px</span>
+            {activeCustom.textBoxWidth && (
+              <button
+                onClick={() => commitChange(activeSlide, { textBoxWidth: undefined })}
+                className="text-[10px] text-gray-400 hover:text-gray-700 underline"
+              >reset</button>
+            )}
           </div>
 
           {/* Body section (only if slide has body text) */}

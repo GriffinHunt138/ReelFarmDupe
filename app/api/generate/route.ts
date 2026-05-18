@@ -45,7 +45,7 @@ CRITICAL: Slide 1 is ALWAYS the hook/title slide — the single most compelling 
 CRITICAL: Slide 1's image_search MUST always be exactly "faceless ugc selfie" — no exceptions.
 
 ${isOrganic ? `ORGANIC RAW rules — follow these exactly:
-- Headlines use lowercase only, never ALL CAPS. Prefix each with its slide number (e.g. "1. i stopped doing x", "2. i learned y"). Short, punchy, reads like a real person talking. Max 10 words.
+- Headlines use lowercase only, never ALL CAPS. Slide 1 is always the hook — no number prefix. For slides 2 onward, prefix each tip/point with its sequential tip number starting from 1 (e.g. slide 2 gets "1. i stopped doing x", slide 3 gets "2. i learned y"). Short, punchy, reads like a real person talking. Max 10 words.
 - Body text is conversational — 1-2 short sentences, sounds like a phone caption. No buzzwords. Keep each sentence on its own line (use \n between sentences).
 - image_search: 2-4 word Pinterest aesthetic term — short, vibe-based. Examples: "morning stretch aesthetic", "gym iphone photo", "couch lifestyle candid", "running outdoor aesthetic", "home workout natural light". NO long sentences, NO stock-photo language.` : `Rules:
 - Headlines should be short, punchy, ALL CAPS style (Bebas Neue font)

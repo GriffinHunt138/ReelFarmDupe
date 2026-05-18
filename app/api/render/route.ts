@@ -42,10 +42,11 @@ export async function POST(req: NextRequest) {
           bodyY:         custom?.bodyY     ?? 68,
           hlStyle:       custom?.hlStyle    ?? 'default',
           bodyStyle:     custom?.bodyStyle  ?? 'default',
-          hlFont:        custom?.hlFont     ?? undefined,
-          bodyFont:      custom?.bodyFont   ?? undefined,
-          hlFontSize:    custom?.hlFontSize  ?? undefined,
+          hlFont:        custom?.hlFont       ?? undefined,
+          bodyFont:      custom?.bodyFont     ?? undefined,
+          hlFontSize:    custom?.hlFontSize   ?? undefined,
           bodyFontSize:  custom?.bodyFontSize ?? undefined,
+          textBoxWidth:  custom?.textBoxWidth ?? undefined,
         } satisfies SlideData;
       })
     );

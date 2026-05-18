@@ -103,8 +103,8 @@ export default function Home() {
           hlY:   isOrganic ? 38 : (i === 0 ? 30 : 28),
           bodyX: 50,
           bodyY: isOrganic ? 62 : (i === 0 ? 58 : 60),
-          // Organic Raw: plain white text — no pill, photo breathes.
-          hlStyle:   'default' as TextStyle,
+          // Organic Raw: white pill on headline, plain white body text.
+          hlStyle:   (isOrganic ? 'white-bg' : 'default') as TextStyle,
           bodyStyle: 'default' as TextStyle,
           hlFont:   isOrganic ? 'montserrat' : 'bebas',
           bodyFont: isOrganic ? 'montserrat' : 'inter',
@@ -116,12 +116,16 @@ export default function Home() {
       Promise.all(
         slides.map(async (slide: Slide) => {
           try {
-            const r    = await fetch(`/api/images?query=${encodeURIComponent(slide.image_search)}&mode=search&count=1`);
+            const r    = await fetch(`/api/images?query=${encodeURIComponent(slide.image_search)}&mode=search&count=8`);
             const json = await r.json();
-            const photo = json.photos?.[0];
+            const photos: { previewUrl?: string; url?: string }[] = json.photos ?? [];
+            // Pick a random result so every generation feels fresh
+            const photo = photos.length > 0
+              ? photos[Math.floor(Math.random() * photos.length)]
+              : null;
             return {
               previewUrl: (photo?.previewUrl as string) ?? '',
-              imageUrl:   (photo?.url       as string) ?? '',
+              imageUrl:   (photo?.url        as string) ?? '',
             };
           } catch { return { previewUrl: '', imageUrl: '' }; }
         })
