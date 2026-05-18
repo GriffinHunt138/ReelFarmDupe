@@ -1,0 +1,218 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=1080" />
+  <title>ReelFarm Slide</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Inter:wght@400;600;700&family=Anton&display=swap" rel="stylesheet" />
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      width: 1080px;
+      height: 1920px;
+      overflow: hidden;
+      font-family: 'Inter', sans-serif;
+      background: #000;
+    }
+
+    .slide {
+      position: relative;
+      width: 1080px;
+      height: 1920px;
+    }
+
+    .bg {
+      position: absolute;
+      inset: 0;
+      background-size: cover;
+      background-position: center;
+      background-repeat: no-repeat;
+    }
+
+    .grain {
+      position: absolute;
+      inset: 0;
+      opacity: 0.18;
+      pointer-events: none;
+      background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 512 512' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)'/%3E%3C/svg%3E");
+      background-size: 256px 256px;
+    }
+
+    .overlay { position: absolute; inset: 0; }
+
+    .overlay-dark-cinematic {
+      background: linear-gradient(180deg, rgba(0,0,0,0.55) 0%, rgba(0,0,0,0.25) 40%, rgba(0,0,0,0.25) 60%, rgba(0,0,0,0.75) 100%);
+    }
+    .overlay-moody-warm {
+      background: linear-gradient(160deg, rgba(40,10,5,0.72) 0%, rgba(90,30,10,0.45) 50%, rgba(20,5,0,0.80) 100%);
+    }
+    .overlay-grain-noir {
+      background: linear-gradient(180deg, rgba(0,0,0,0.80) 0%, rgba(0,0,0,0.40) 50%, rgba(0,0,0,0.88) 100%);
+    }
+    .overlay-winter-arc {
+      background: linear-gradient(180deg, rgba(5,15,35,0.75) 0%, rgba(10,25,55,0.40) 50%, rgba(5,10,30,0.82) 100%);
+    }
+    .overlay-dark-academia {
+      background: linear-gradient(160deg, rgba(20,15,5,0.78) 0%, rgba(45,35,10,0.45) 50%, rgba(15,10,0,0.85) 100%);
+    }
+    /* Organic Raw — subtle even darkening so text always pops */
+    .overlay-organic-raw {
+      background: linear-gradient(180deg, rgba(0,0,0,0.22) 0%, rgba(0,0,0,0.12) 50%, rgba(0,0,0,0.50) 100%);
+    }
+
+    /* ── Shared text block — positioned via inline style from render.ts ── */
+    .text-block {
+      position: absolute;
+      z-index: 10;
+      text-align: center;
+      width: 960px;
+      /* left/top set inline */
+      transform: translate(-50%, -50%);
+    }
+
+    .slide-number {
+      font-family: 'Inter', sans-serif;
+      font-size: 24px;
+      font-weight: 600;
+      letter-spacing: 6px;
+      text-transform: uppercase;
+      color: rgba(255,255,255,0.5);
+      margin-bottom: 20px;
+    }
+
+    .accent-line {
+      width: 60px;
+      height: 4px;
+      background: rgba(255,255,255,0.6);
+      border-radius: 2px;
+      margin: 0 auto 28px;
+    }
+
+    /* ── Polished headline (Bebas Neue) ── */
+    .headline {
+      font-family: 'Bebas Neue', sans-serif;
+      font-size: 128px;
+      line-height: 1.0;
+      letter-spacing: 3px;
+      color: #ffffff; /* overridden inline */
+      text-shadow: 0 4px 32px rgba(0,0,0,0.9), 0 2px 8px rgba(0,0,0,0.7);
+      word-break: break-word;
+    }
+    .headline.long      { font-size: 96px; }
+    .headline.very-long { font-size: 76px; }
+
+    .body-text {
+      font-family: 'Inter', sans-serif;
+      font-size: 38px;
+      font-weight: 600;
+      line-height: 1.45;
+      color: rgba(255,255,255,0.88);
+      text-shadow: 0 2px 16px rgba(0,0,0,0.8);
+      margin-top: 28px;
+    }
+
+    /* ── Organic Raw — Inter font, natural feel, photo breathes ── */
+    .template-organic-raw .slide-number { display: none; }
+    .template-organic-raw .accent-line  { display: none; }
+    .template-organic-raw .grain        { display: none; }
+
+    .template-organic-raw .headline {
+      font-family: 'Inter', sans-serif;
+      font-size: 88px;
+      font-weight: 800;
+      letter-spacing: -2px;
+      line-height: 1.1;
+      text-transform: none;
+      color: #ffffff;
+      text-shadow:
+        0 2px 24px rgba(0,0,0,0.55),
+        0 1px 6px  rgba(0,0,0,0.45);
+    }
+    .template-organic-raw .headline.long      { font-size: 70px; }
+    .template-organic-raw .headline.very-long { font-size: 56px; }
+
+    .template-organic-raw .body-text {
+      font-family: 'Inter', sans-serif;
+      font-size: 44px;
+      font-weight: 500;
+      line-height: 1.5;
+      letter-spacing: -0.5px;
+      color: rgba(255,255,255,0.92);
+      text-shadow: 0 1px 12px rgba(0,0,0,0.6);
+      margin-top: 36px;
+    }
+
+    /* ── Template colour accents ── */
+    .template-moody-warm   .accent-line { background: rgba(255,160,80,0.8); }
+    .template-winter-arc   .accent-line { background: rgba(100,160,255,0.8); }
+    .template-dark-academia .accent-line { background: rgba(200,170,100,0.8); }
+
+    /* ── Text style presets — applied via <span class="ts-*"> wrapper ── */
+    .ts-default    {}
+    .ts-outline    { -webkit-text-stroke: 3px #000; }
+    .ts-white-text { color: #fff !important; }
+    .ts-black-text { color: #000 !important; text-shadow: none !important; }
+    .ts-yellow-text { color: #FFE600 !important; }
+    .ts-white-bg {
+      color: #000 !important; background: #fff;
+      padding: 6px 28px; border-radius: 10px;
+      text-shadow: none !important; display: inline-block;
+      -webkit-box-decoration-break: clone; box-decoration-break: clone;
+    }
+    .ts-white-50-bg {
+      color: #fff !important; background: rgba(255,255,255,0.5);
+      padding: 6px 28px; border-radius: 10px;
+      text-shadow: none !important; display: inline-block;
+      -webkit-box-decoration-break: clone; box-decoration-break: clone;
+    }
+    .ts-black-bg {
+      color: #fff !important; background: #000;
+      padding: 6px 28px; border-radius: 10px;
+      text-shadow: none !important; display: inline-block;
+      -webkit-box-decoration-break: clone; box-decoration-break: clone;
+    }
+    .ts-black-50-bg {
+      color: #fff !important; background: rgba(0,0,0,0.5);
+      padding: 6px 28px; border-radius: 10px;
+      text-shadow: none !important; display: inline-block;
+      -webkit-box-decoration-break: clone; box-decoration-break: clone;
+    }
+
+    /* ── Bottom branding ── */
+    .branding {
+      position: absolute;
+      bottom: 60px;
+      left: 0; right: 0;
+      z-index: 10;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 12px;
+    }
+    .brand-dot  { width: 8px; height: 8px; border-radius: 50%; background: rgba(255,255,255,0.4); }
+    .brand-text { font-family: 'Bebas Neue', sans-serif; font-size: 28px; letter-spacing: 8px; color: rgba(255,255,255,0.35); }
+  </style>
+</head>
+<body>
+  <div class="slide template-{{TEMPLATE}}" id="slide">
+
+    <div class="bg" style="background-image: url('{{IMAGE_URL}}');"></div>
+    <div class="overlay overlay-{{OVERLAY_STYLE}}"></div>
+    <div class="grain"></div>
+
+    <!-- Headline block -->
+    <div class="text-block" style="left: {{HL_X_PCT}}%; top: {{HL_Y_PCT}}%;">
+      <div class="slide-number">{{SLIDE_NUMBER}}</div>
+      <div class="accent-line"></div>
+      <div class="headline {{HEADLINE_SIZE_CLASS}}">{{HL_HTML}}</div>
+    </div>
+
+    <!-- Body block -->
+    {{BODY_BLOCK}}
+
+
+  </div>
+</body>
+</html>

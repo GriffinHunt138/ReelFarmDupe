@@ -2,7 +2,33 @@
   "permissions": {
     "allow": [
       "Bash(npm --version)",
-      "Bash(npx create-next-app@latest . --typescript --tailwind --eslint --app --no-src-dir --import-alias \"@/*\" --yes)"
+      "Bash(npx create-next-app@latest . --typescript --tailwind --eslint --app --no-src-dir --import-alias \"@/*\" --yes)",
+      "Bash(npm install *)",
+      "Bash(npx playwright *)",
+      "Bash(npx tsc *)",
+      "Bash(npm run *)",
+      "Bash(curl -s http://localhost:3000)",
+      "Bash(cat /tmp/reelfarm-dev.log | grep -E \"\\(error|Error|warning|✓|▲|ready\\)\" | head -20)",
+      "Bash(curl -s http://localhost:3000/api/posts)",
+      "Bash(curl -s http://localhost:3000/api/auth/tiktok/status)",
+      "Bash(pkill -f \"next dev\")",
+      "Bash(pkill -f \"next\")",
+      "Bash(curl -s -X POST http://localhost:3000/api/generate -H 'Content-Type: application/json' -d '{\"topic\":\"test\",\"slide_count\":1}')",
+      "Bash(kill 65183 65184 65182)",
+      "Bash(awk '{print $2}')",
+      "Bash(xargs kill -9)",
+      "Bash(curl -s http://localhost:3000/api/debug)",
+      "Bash(xxd /Users/griffinhunt/Desktop/reelfarmdupe/.env.local)",
+      "Bash(xattr -c /Users/griffinhunt/Desktop/reelfarmdupe/.env.local)",
+      "Bash(xattr -d com.apple.provenance /Users/griffinhunt/Desktop/reelfarmdupe/.env.local)",
+      "Bash(curl -s -X POST http://localhost:3000/api/generate -H 'Content-Type: application/json' -d '{\"topic\":\"5 ways to fix back pain\",\"niche\":\"Fitness\",\"slide_count\":3}')",
+      "Bash(curl -s --compressed -A 'Mozilla/5.0 \\(Macintosh; Intel Mac OS X 10_15_7\\) AppleWebKit/537.36 \\(KHTML, like Gecko\\) Chrome/124.0.0.0 Safari/537.36' -H 'Accept: text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8' -H 'Accept-Language: en-US,en;q=0.9' 'https://www.pinterest.com/search/pins/?q=back+pain+stretching&rs=typed')",
+      "Bash(ls /Users/griffinhunt/Desktop/slideshows 2>/dev/null || echo \"does not exist\")",
+      "Bash(mkdir -p /Users/griffinhunt/Desktop/slideshows && echo \"created\")",
+      "Bash(echo \"started PID $!\")",
+      "Bash(npm uninstall *)",
+      "Bash(echo \"PID $!\")",
+      "Bash(rm -f /Users/griffinhunt/Desktop/reelfarmdupe/assets/images/*.png && echo \"cleared $\\(ls /Users/griffinhunt/Desktop/reelfarmdupe/assets/images/ | wc -l\\) cached images\")"
     ]
   }
 }
