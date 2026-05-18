@@ -21,8 +21,9 @@ export interface SlideData {
   hlFont?: string;
   bodyFont?: string;
   hlFontSize?: number;
+  hlWidth?: number;
   bodyFontSize?: number;
-  textBoxWidth?: number;
+  bodyWidth?: number;
 }
 
 const HEADERS = {
@@ -116,7 +117,8 @@ export async function renderSlides(slides: SlideData[], postTitle: string): Prom
       bodyY:         slide.bodyY,
       bodyFont:      slide.bodyFont,
       bodyFontSize:  slide.bodyFontSize,
-      textBoxWidth:  slide.textBoxWidth,
+      hlWidth:       slide.hlWidth,
+      bodyWidth:     slide.bodyWidth,
     };
 
     const html = buildSlideHtml(template, data);

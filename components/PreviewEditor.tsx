@@ -20,8 +20,9 @@ export interface TextCustomization {
   hlFont?: FontKey;
   bodyFont?: FontKey;
   hlFontSize?: number;    // px — overrides auto-size when set
+  hlWidth?: number;       // px width of headline text block (default 780)
   bodyFontSize?: number;  // px — overrides default body size when set
-  textBoxWidth?: number;  // px width for text blocks (default 780)
+  bodyWidth?: number;     // px width of body text block (default 780)
   imageUrl?: string;      // 736x Pinterest URL used for both preview AND export
   previewUrl?: string;    // 474x thumbnail (kept for backward compat, prefer imageUrl)
 }
@@ -102,6 +103,98 @@ function SizeStepper({ value, min, max, step, onChange }: {
   );
 }
 
+// ── Text-block resize overlay — left / right edge drag handles ────────────
+function TextBlockResizer({
+  hlX, hlY, width, onResize,
+}: {
+  hlX: number;    // % of slide width (center of text block)
+  hlY: number;    // % of slide height (center of text block)
+  width: number;  // slide-px width of text block (default 780)
+  onResize: (newHlX: number, newWidth: number) => void;
+}) {
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  const widthPct = (width / SLIDE_W) * 100;
+  const leftPct  = hlX - widthPct / 2;
+  const rightPct = hlX + widthPct / 2;
+
+  // Handle height as ~15% of slide, centred at hlY
+  const boxTopPct = hlY - 7.5;
+  const boxHPct   = 15;
+
+  const startDrag = useCallback((side: 'left' | 'right', e: React.MouseEvent) => {
+    e.stopPropagation();
+    e.preventDefault();
+
+    const card = containerRef.current?.closest('[data-slide-card]') as HTMLElement | null;
+    if (!card) return;
+
+    // Snapshot edges at drag-start so they stay fixed during the drag
+    const fixedLeft  = hlX - (width / SLIDE_W) * 50;
+    const fixedRight = hlX + (width / SLIDE_W) * 50;
+
+    const onMove = (ev: MouseEvent) => {
+      const r = card.getBoundingClientRect();
+      const mx = Math.max(1, Math.min(99, ((ev.clientX - r.left) / r.width) * 100));
+
+      let newCenterPct: number, newWidthPx: number;
+      if (side === 'right') {
+        if (mx <= fixedLeft + 3) return;
+        const wPct    = mx - fixedLeft;
+        newCenterPct  = fixedLeft + wPct / 2;
+        newWidthPx    = Math.round((wPct / 100) * SLIDE_W);
+      } else {
+        if (fixedRight <= mx + 3) return;
+        const wPct    = fixedRight - mx;
+        newCenterPct  = mx + wPct / 2;
+        newWidthPx    = Math.round((wPct / 100) * SLIDE_W);
+      }
+
+      onResize(
+        Math.max(5, Math.min(95, newCenterPct)),
+        Math.max(120, Math.min(1060, newWidthPx)),
+      );
+    };
+
+    const onUp = () => {
+      window.removeEventListener('mousemove', onMove);
+      window.removeEventListener('mouseup',   onUp);
+    };
+    window.addEventListener('mousemove', onMove);
+    window.addEventListener('mouseup',   onUp);
+  }, [hlX, width, onResize]);
+
+  const handleCls = 'absolute top-1/2 -translate-y-1/2 w-[6px] h-8 bg-blue-500 rounded-sm cursor-ew-resize pointer-events-auto shadow-lg';
+
+  return (
+    <div ref={containerRef} className="absolute inset-0 pointer-events-none" style={{ zIndex: 25 }}>
+      {/* Dashed bounding box */}
+      <div
+        className="absolute border border-dashed border-blue-400/70"
+        style={{
+          left:   `${leftPct}%`,
+          top:    `${boxTopPct}%`,
+          width:  `${widthPct}%`,
+          height: `${boxHPct}%`,
+          pointerEvents: 'none',
+        }}
+      />
+      {/* Left handle */}
+      <div
+        className={handleCls}
+        style={{ left: `${leftPct}%`, top: `${hlY}%`, transform: 'translate(-50%, -50%)' }}
+        onMouseDown={e => startDrag('left', e)}
+      />
+      {/* Right handle */}
+      <div
+        className={handleCls}
+        style={{ left: `${rightPct}%`, top: `${hlY}%`, transform: 'translate(-50%, -50%)' }}
+        onMouseDown={e => startDrag('right', e)}
+      />
+    </div>
+  );
+}
+
 // ── Drag handle — overlaid on top of iframe ────────────────────────────────
 function DragHandle({
   x, y, label, color,
@@ -169,7 +262,7 @@ function DragHandle({
 function SlideCard({
   html, index, isActive,
   custom, hasBody,
-  onActivate, onPositionChange, onImageClick,
+  onActivate, onPositionChange, onHlWidthResize, onBodyWidthResize, onImageClick,
 }: {
   html: string;
   index: number;
@@ -178,6 +271,8 @@ function SlideCard({
   hasBody: boolean;
   onActivate: () => void;
   onPositionChange: (block: 'hl' | 'body', x: number, y: number) => void;
+  onHlWidthResize: (newX: number, newWidth: number) => void;
+  onBodyWidthResize: (newX: number, newWidth: number) => void;
   onImageClick: () => void;
 }) {
   return (
@@ -223,9 +318,25 @@ function SlideCard({
         </svg>
       </button>
 
-      {/* Drag handles (active slide only) */}
+      {/* Drag handles + resize overlays (active slide only) */}
       {isActive && (
         <>
+          {/* Headline text block resizer */}
+          <TextBlockResizer
+            hlX={custom.hlX}
+            hlY={custom.hlY}
+            width={custom.hlWidth ?? 780}
+            onResize={onHlWidthResize}
+          />
+          {/* Body text block resizer */}
+          {hasBody && (
+            <TextBlockResizer
+              hlX={custom.bodyX}
+              hlY={custom.bodyY}
+              width={custom.bodyWidth ?? 780}
+              onResize={onBodyWidthResize}
+            />
+          )}
           <DragHandle
             x={custom.hlX} y={custom.hlY}
             label="H" color="bg-blue-500"
@@ -291,13 +402,14 @@ export default function PreviewEditor({ slides, imageUrls, textCustomizations, o
         hlY:           c.hlY,
         hlFont:        c.hlFont,
         hlFontSize:    c.hlFontSize,
+        hlWidth:       c.hlWidth,
         bodyHtml:      c.bodyHtml,
         bodyStyle:     c.bodyStyle,
         bodyX:         c.bodyX,
         bodyY:         c.bodyY,
         bodyFont:      c.bodyFont,
         bodyFontSize:  c.bodyFontSize,
-        textBoxWidth:  c.textBoxWidth,
+        bodyWidth:     c.bodyWidth,
       });
     });
   }, [template, slides, textCustomizations, localImageUrls, imageUrls]);
@@ -316,6 +428,16 @@ export default function PreviewEditor({ slides, imageUrls, textCustomizations, o
   function handlePositionChange(block: 'hl' | 'body', x: number, y: number) {
     if (activeSlide === null) return;
     commitChange(activeSlide, block === 'hl' ? { hlX: x, hlY: y } : { bodyX: x, bodyY: y });
+  }
+
+  function handleHlWidthResize(newX: number, newWidth: number) {
+    if (activeSlide === null) return;
+    commitChange(activeSlide, { hlX: newX, hlWidth: newWidth });
+  }
+
+  function handleBodyWidthResize(newX: number, newWidth: number) {
+    if (activeSlide === null) return;
+    commitChange(activeSlide, { bodyX: newX, bodyWidth: newWidth });
   }
 
   function saveEdit() {
@@ -361,7 +483,7 @@ export default function PreviewEditor({ slides, imageUrls, textCustomizations, o
         </span>
         {activeSlide !== null && (
           <span className="text-gray-400 text-xs">
-            Slide {activeSlide + 1} — drag <span className="text-blue-500 font-bold">H</span> / <span className="text-purple-500 font-bold">B</span> to reposition
+            Slide {activeSlide + 1} — drag <span className="text-blue-500 font-bold">H</span> / <span className="text-purple-500 font-bold">B</span> to move · drag <span className="text-blue-400 font-bold">edges</span> to resize
           </span>
         )}
       </div>
@@ -384,6 +506,8 @@ export default function PreviewEditor({ slides, imageUrls, textCustomizations, o
                 hasBody={!!custom.bodyHtml}
                 onActivate={() => openSlide(i)}
                 onPositionChange={handlePositionChange}
+                onHlWidthResize={handleHlWidthResize}
+                onBodyWidthResize={handleBodyWidthResize}
                 onImageClick={() => { setPinterestSlide(i); setShowPinterest(true); }}
               />
             </div>
@@ -477,23 +601,6 @@ export default function PreviewEditor({ slides, imageUrls, textCustomizations, o
                 onChange={v => commitChange(activeSlide, { hlFontSize: v })}
               />
             </div>
-          </div>
-
-          {/* Text box width */}
-          <div className="pt-1 border-t border-gray-100 flex items-center gap-3">
-            <span className="text-[10px] text-gray-500 uppercase tracking-widest font-medium flex-shrink-0">Box Width</span>
-            <SizeStepper
-              value={activeCustom.textBoxWidth ?? 780}
-              min={200} max={1020} step={20}
-              onChange={v => commitChange(activeSlide, { textBoxWidth: v })}
-            />
-            <span className="text-[10px] text-gray-400">px</span>
-            {activeCustom.textBoxWidth && (
-              <button
-                onClick={() => commitChange(activeSlide, { textBoxWidth: undefined })}
-                className="text-[10px] text-gray-400 hover:text-gray-700 underline"
-              >reset</button>
-            )}
           </div>
 
           {/* Body section (only if slide has body text) */}

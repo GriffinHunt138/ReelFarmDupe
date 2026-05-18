@@ -31,13 +31,14 @@ export interface SlideHtmlData {
   hlY?: number;
   hlFont?: string;
   hlFontSize?: number;    // px override — bypasses the auto-size class
+  hlWidth?: number;       // px width of headline text block (default 780)
   bodyHtml?: string;
   bodyStyle?: string;
   bodyX?: number;
   bodyY?: number;
   bodyFont?: string;
   bodyFontSize?: number;  // px override for body text
-  textBoxWidth?: number;  // px width for both text blocks (default 780)
+  bodyWidth?: number;     // px width of body text block (default 780)
 }
 
 export function buildSlideHtml(template: string, d: SlideHtmlData): string {
@@ -60,10 +61,11 @@ export function buildSlideHtml(template: string, d: SlideHtmlData): string {
     `font-family: ${bodyFontFamily};` +
     (d.bodyFontSize ? ` font-size: ${d.bodyFontSize}px;` : '');
 
-  const widthStyle = d.textBoxWidth ? `width:${d.textBoxWidth}px;` : '';
+  const hlWidthStyle   = d.hlWidth   ? `width:${d.hlWidth}px;`   : '';
+  const bodyWidthStyle = d.bodyWidth ? `width:${d.bodyWidth}px;` : '';
 
   const bodyBlock = bodyHtml
-    ? `<div class="text-block" style="left:${d.bodyX ?? 50}%;top:${d.bodyY ?? 68}%;${widthStyle}">` +
+    ? `<div class="text-block" style="left:${d.bodyX ?? 50}%;top:${d.bodyY ?? 68}%;${bodyWidthStyle}">` +
       `<div class="body-text" style="${bodyInlineStyle}">` +
       `<span class="ts-${bodyStyle}">${bodyHtml}</span></div></div>`
     : '';
@@ -80,6 +82,6 @@ export function buildSlideHtml(template: string, d: SlideHtmlData): string {
     .replace(/\{\{HEADLINE_SIZE_CLASS\}\}/g,  hlSizeClass)
     .replace(/\{\{HL_X_PCT\}\}/g,            String(d.hlX ?? 50))
     .replace(/\{\{HL_Y_PCT\}\}/g,            String(d.hlY ?? 45))
-    .replace(/\{\{HL_WIDTH_STYLE\}\}/g,      widthStyle)
+    .replace(/\{\{HL_WIDTH_STYLE\}\}/g,      hlWidthStyle)
     .replace(/\{\{BODY_BLOCK\}\}/g,          bodyBlock);
 }
