@@ -32,7 +32,15 @@
       "Bash(pkill -f \"next-server\")",
       "Bash(echo \"PID: $!\")",
       "Bash(curl -s -X POST http://localhost:3000/api/generate -H 'Content-Type: application/json' -d '{\"topic\":\"test\",\"niche\":\"Fitness\",\"tone\":\"Inspirational\",\"template\":\"Dark Cinematic\",\"slide_count\":2}')",
-      "Bash(cp ~/Downloads/cta.png /Users/griffinhunt/Desktop/reelfarmdupe/public/cta.png && echo \"copied\" && ls -lh /Users/griffinhunt/Desktop/reelfarmdupe/public/cta.png)"
+      "Bash(cp ~/Downloads/cta.png /Users/griffinhunt/Desktop/reelfarmdupe/public/cta.png && echo \"copied\" && ls -lh /Users/griffinhunt/Desktop/reelfarmdupe/public/cta.png)",
+      "Bash(curl -s http://localhost:3000/api/generate-topics -X POST -H \"Content-Type: application/json\" -d '{\"subject\":\"test\",\"count\":1}')",
+      "Bash(curl -s http://localhost:9222/json/version)",
+      "Bash(xargs -I{} sh -c 'lsof -p {} 2>/dev/null | grep TCP')",
+      "Bash(curl -v http://127.0.0.1:9222/json/version)",
+      "Bash(kill 99080)",
+      "Bash('/Applications/Google Chrome.app/Contents/MacOS/Google Chrome' --remote-debugging-port=9222 --user-data-dir=__TRACKED_VAR__/.reelfarm-chrome-profile --no-first-run --no-default-browser-check)",
+      "Bash(curl -s http://127.0.0.1:9222/json/version)",
+      "Bash(curl -s -X PATCH http://localhost:3000/api/queue/item -H 'Content-Type: application/json' -d '{\"id\":1,\"scheduled_at\":\"2026-05-20T14:00:00.000Z\"}')"
     ]
   }
 }

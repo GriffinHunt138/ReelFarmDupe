@@ -27,6 +27,16 @@ export interface TextCustomization {
   previewUrl?: string;    // 474x thumbnail (kept for backward compat, prefer imageUrl)
 }
 
+// Format-only fields — copied by format painter (excludes text content + image)
+interface SlideFormat {
+  hlX: number; hlY: number;
+  bodyX: number; bodyY: number;
+  hlStyle: TextStyle; bodyStyle: TextStyle;
+  hlFont?: FontKey; bodyFont?: FontKey;
+  hlFontSize?: number; bodyFontSize?: number;
+  hlWidth?: number; bodyWidth?: number;
+}
+
 interface SlideData {
   headline: string;
   body?: string | null;
@@ -362,17 +372,21 @@ export default function PreviewEditor({ slides, imageUrls, textCustomizations, o
   const [savedState,    setSavedState]    = useState<TextCustomization | null>(null);
   const [pinterestSlide, setPinterestSlide] = useState(0);
   const [showPinterest, setShowPinterest] = useState(false);
+  const [copiedFormat,  setCopiedFormat]  = useState<SlideFormat | null>(null);
+  const [formatApplied, setFormatApplied] = useState(false);
 
   // The image URLs shown in iframes — starts with previewUrls, updated when custom.imageUrl is set
   const [localImageUrls, setLocalImageUrls] = useState<string[]>([]);
   useEffect(() => { setLocalImageUrls(imageUrls); }, [imageUrls]);
 
-  // Also sync imageUrls from textCustomizations when they arrive
+  // Also sync imageUrls from textCustomizations — imageUrl on the customization
+  // is the source of truth; always prefer it over the imageUrls prop slot
   useEffect(() => {
     setLocalImageUrls(prev => {
       const next = [...prev];
       textCustomizations.forEach((c, i) => {
-        if (c?.imageUrl && !next[i]) next[i] = c.imageUrl;
+        if (c?.imageUrl) next[i] = c.imageUrl;
+        else if (c?.previewUrl && !next[i]) next[i] = c.previewUrl;
       });
       return next;
     });
@@ -438,6 +452,29 @@ export default function PreviewEditor({ slides, imageUrls, textCustomizations, o
   function handleBodyWidthResize(newX: number, newWidth: number) {
     if (activeSlide === null) return;
     commitChange(activeSlide, { bodyX: newX, bodyWidth: newWidth });
+  }
+
+  function copyFormat() {
+    if (activeSlide === null) return;
+    const c = textCustomizations[activeSlide];
+    setCopiedFormat({
+      hlX: c.hlX, hlY: c.hlY,
+      bodyX: c.bodyX, bodyY: c.bodyY,
+      hlStyle: c.hlStyle, bodyStyle: c.bodyStyle,
+      hlFont: c.hlFont, bodyFont: c.bodyFont,
+      hlFontSize: c.hlFontSize, bodyFontSize: c.bodyFontSize,
+      hlWidth: c.hlWidth, bodyWidth: c.bodyWidth,
+    });
+    setFormatApplied(false);
+  }
+
+  function applyFormatToAll() {
+    if (!copiedFormat) return;
+    textCustomizations.forEach((c, i) => {
+      if (i === activeSlide) return; // skip source slide
+      onChange(i, { ...c, ...copiedFormat });
+    });
+    setFormatApplied(true);
   }
 
   function saveEdit() {
@@ -529,6 +566,42 @@ export default function PreviewEditor({ slides, imageUrls, textCustomizations, o
           </div>
         )}
       </div>
+
+      {/* Format painter banner — shown whenever a format is copied */}
+      {copiedFormat && (
+        <div className={`flex items-center gap-3 px-3 py-2 rounded-lg border text-xs transition-colors ${
+          formatApplied
+            ? 'bg-green-50 border-green-200 text-green-700'
+            : 'bg-amber-50 border-amber-200 text-amber-800'
+        }`}>
+          <svg className="w-3.5 h-3.5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+              d="M7 21a4 4 0 01-4-4V5a2 2 0 012-2h4a2 2 0 012 2v12a4 4 0 01-4 4zm0 0h12a2 2 0 002-2v-4a2 2 0 00-2-2h-2.343M11 7.343l1.657-1.657a2 2 0 012.828 0l2.829 2.829a2 2 0 010 2.828l-8.486 8.485M7 17h.01" />
+          </svg>
+          <span className="flex-1">
+            {formatApplied
+              ? `Format applied to all ${slides.length - 1} other slides`
+              : `Format copied from slide ${(activeSlide ?? 0) + 1} — ready to apply`}
+          </span>
+          {!formatApplied && (
+            <button
+              onClick={applyFormatToAll}
+              className="bg-amber-700 hover:bg-amber-800 text-white font-bold px-3 py-1 rounded-md transition-colors"
+            >
+              Apply to All Slides
+            </button>
+          )}
+          <button
+            onClick={() => { setCopiedFormat(null); setFormatApplied(false); }}
+            className="text-current opacity-50 hover:opacity-100 transition-opacity ml-1"
+            title="Dismiss"
+          >
+            <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+        </div>
+      )}
 
       {/* Thumbnail strip */}
       <div className="flex gap-2 overflow-x-auto">
@@ -653,6 +726,23 @@ export default function PreviewEditor({ slides, imageUrls, textCustomizations, o
                   d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
               </svg>
               Replace Image
+            </button>
+
+            {/* Copy format */}
+            <button
+              onClick={copyFormat}
+              title="Copy text format from this slide"
+              className={`flex items-center gap-1.5 border text-xs px-2.5 py-1.5 rounded-lg transition-colors ${
+                copiedFormat && activeSlide === activeSlide
+                  ? 'bg-amber-50 border-amber-300 text-amber-700 hover:bg-amber-100'
+                  : 'bg-gray-50 border-gray-200 text-gray-500 hover:text-gray-900 hover:bg-gray-100'
+              }`}
+            >
+              <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                  d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+              </svg>
+              Copy Format
             </button>
 
             <div className="flex-1" />

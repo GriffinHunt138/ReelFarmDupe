@@ -19,6 +19,30 @@ export function getDb(): Database.Database {
 
 function migrate(db: Database.Database) {
   db.exec(`
+    CREATE TABLE IF NOT EXISTS post_queue (
+      id            INTEGER PRIMARY KEY AUTOINCREMENT,
+      slideshow_id  TEXT,
+      title         TEXT NOT NULL,
+      caption       TEXT,
+      hashtags      TEXT,
+      output_dir    TEXT NOT NULL,
+      slide_paths   TEXT NOT NULL,
+      scheduled_at  TEXT NOT NULL,
+      status        TEXT NOT NULL DEFAULT 'pending',
+      error_msg     TEXT,
+      posted_at     TEXT,
+      created_at    TEXT NOT NULL DEFAULT (datetime('now'))
+    );
+
+    CREATE TABLE IF NOT EXISTS queue_settings (
+      id            INTEGER PRIMARY KEY CHECK (id = 1),
+      posts_per_day INTEGER NOT NULL DEFAULT 6,
+      post_times    TEXT NOT NULL DEFAULT '["09:00","11:00","13:00","15:00","17:00","19:00"]'
+    );
+
+    INSERT OR IGNORE INTO queue_settings (id, posts_per_day, post_times)
+    VALUES (1, 6, '["09:00","11:00","13:00","15:00","17:00","19:00"]');
+
     CREATE TABLE IF NOT EXISTS posts (
       id          INTEGER PRIMARY KEY AUTOINCREMENT,
       title       TEXT NOT NULL,

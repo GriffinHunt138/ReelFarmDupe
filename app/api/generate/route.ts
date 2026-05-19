@@ -12,7 +12,7 @@ const OVERLAY_STYLES: Record<string, string> = {
 
 export async function POST(req: NextRequest) {
   try {
-    const { topic, niche, tone, template, slide_count = 5 } = await req.json();
+    const { topic, niche, tone, template, slide_count = 5, audience } = await req.json();
 
     if (!topic) return NextResponse.json({ error: 'topic is required' }, { status: 400 });
 
@@ -23,13 +23,14 @@ export async function POST(req: NextRequest) {
     const prompt = `You are a viral TikTok content strategist. Create a ${slide_count}-slide photo slideshow for TikTok about: "${topic}"
 ${niche ? `Niche: ${niche}` : ''}
 ${tone ? `Tone: ${tone}` : ''}
+${audience ? `Target audience: ${audience} — write text from their perspective and use image_search terms that feature this type of person (e.g. if audience is "woman", image searches should feature women; if "older man", feature older men, etc.)` : ''}
 Template: ${template ?? 'Dark Cinematic'}
 
 Return ONLY valid JSON with this exact structure:
 {
   "title": "Short post title (max 8 words)",
-  "caption": "TikTok caption (max 150 chars, engaging, includes a hook)",
-  "hashtags": ["hashtag1", "hashtag2", "hashtag3", "hashtag4", "hashtag5"],
+  "caption": "#hashtag1 #hashtag2",
+  "hashtags": [],
   "slides": [
     {
       "headline": "SLIDE HEADLINE (slide 1 MUST be the hook/title that stops the scroll)",
@@ -41,6 +42,8 @@ Return ONLY valid JSON with this exact structure:
   ]
 }
 
+CRITICAL: caption must be ONLY two relevant hashtags, nothing else. Format: "#hashtag1 #hashtag2". No sentences, no description, no extra text.
+CRITICAL: hashtags array must be empty [].
 CRITICAL: Slide 1 is ALWAYS the hook/title slide — the single most compelling line that makes someone stop scrolling. It sets the premise for everything that follows.
 CRITICAL: Slide 1's image_search MUST always be exactly "faceless ugc selfie" — no exceptions.
 
