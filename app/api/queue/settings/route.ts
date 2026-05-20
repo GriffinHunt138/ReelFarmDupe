@@ -8,7 +8,7 @@ export async function GET() {
 export async function PUT(req: NextRequest) {
   try {
     const body = await req.json();
-    saveSettings({ posts_per_day: body.posts_per_day, post_times: body.post_times });
+    saveSettings({ posts_per_day: body.posts_per_day, post_times: body.post_times, notify_phone: body.notify_phone ?? '+12035363028' });
     return NextResponse.json(getSettings());
   } catch (err: unknown) {
     return NextResponse.json({ error: String(err) }, { status: 500 });

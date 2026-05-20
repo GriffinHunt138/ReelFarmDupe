@@ -40,7 +40,15 @@
       "Bash(kill 99080)",
       "Bash('/Applications/Google Chrome.app/Contents/MacOS/Google Chrome' --remote-debugging-port=9222 --user-data-dir=__TRACKED_VAR__/.reelfarm-chrome-profile --no-first-run --no-default-browser-check)",
       "Bash(curl -s http://127.0.0.1:9222/json/version)",
-      "Bash(curl -s -X PATCH http://localhost:3000/api/queue/item -H 'Content-Type: application/json' -d '{\"id\":1,\"scheduled_at\":\"2026-05-20T14:00:00.000Z\"}')"
+      "Bash(curl -s -X PATCH http://localhost:3000/api/queue/item -H 'Content-Type: application/json' -d '{\"id\":1,\"scheduled_at\":\"2026-05-20T14:00:00.000Z\"}')",
+      "Bash(node -e \"console.log\\(require\\('./node_modules/next/package.json'\\).version\\)\")",
+      "Bash(grep -r \"startQueueWorker\\\\|queue-worker\" /tmp/reelfarm-dev.log 2>/dev/null | head -10 || tail -30 /tmp/reelfarm-dev.log 2>/dev/null)",
+      "Bash(node -e ' *)",
+      "Bash(pkill -f \"next dev\" 2>/dev/null; sleep 1; npm run dev > /tmp/reelfarm-dev.log 2>&1 & *)",
+      "Bash(ps -p 1502 -o ppid=)",
+      "Bash(xargs ps -p)",
+      "Bash(ps -o pid,ppid,comm -p 1502)",
+      "Bash(osascript /tmp/test-imessage-direct.applescript)"
     ]
   }
 }

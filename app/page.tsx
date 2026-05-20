@@ -19,11 +19,13 @@ interface QueueItem {
   error_msg: string | null;
   posted_at: string | null;
   created_at: string;
+  slide_paths: string[];
 }
 
 interface QueueSettings {
   posts_per_day: number;
   post_times: string[];
+  notify_phone: string;
 }
 
 // ── Types ──────────────────────────────────────────────────────────────────
@@ -162,12 +164,14 @@ export default function Home() {
 
   // ── Queue tab ──────────────────────────────────────────────────────────
   const [queueItems,     setQueueItems]     = useState<QueueItem[]>([]);
-  const [queueSettings,  setQueueSettings]  = useState<QueueSettings>({ posts_per_day: 6, post_times: ['09:00','11:00','13:00','15:00','17:00','19:00'] });
+  const [queueSettings,  setQueueSettings]  = useState<QueueSettings>({ posts_per_day: 6, post_times: ['09:00','11:00','13:00','15:00','17:00','19:00'], notify_phone: '+12035363028' });
   const [chromeConnected,    setChromeConnected]    = useState<boolean | null>(null);
   const [chromeLaunching,    setChromeLaunching]    = useState(false);
   const [settingsEditing,    setSettingsEditing]    = useState(false);
+  const [queueSubTab,        setQueueSubTab]        = useState<'ready' | 'downloaded'>('ready');
   const [editTimes,          setEditTimes]          = useState<string[]>([]);
   const [editPpd,            setEditPpd]            = useState(6);
+  const [editPhone,          setEditPhone]          = useState('+12035363028');
   const [editingScheduleId,  setEditingScheduleId]  = useState<number | null>(null);
   const [editSchedDate,      setEditSchedDate]      = useState('');
   const [editSchedTime,      setEditSchedTime]      = useState('');
@@ -409,15 +413,16 @@ export default function Home() {
       setQueueSettings(data);
       setEditPpd(data.posts_per_day);
       setEditTimes(data.post_times);
+      setEditPhone(data.notify_phone ?? '+12035363028');
     } catch { /* non-fatal */ }
   }
 
   async function saveQueueSettings() {
     await fetch('/api/queue/settings', {
       method: 'PUT', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ posts_per_day: editPpd, post_times: editTimes }),
+      body: JSON.stringify({ posts_per_day: editPpd, post_times: editTimes, notify_phone: editPhone }),
     });
-    setQueueSettings({ posts_per_day: editPpd, post_times: editTimes });
+    setQueueSettings({ posts_per_day: editPpd, post_times: editTimes, notify_phone: editPhone });
     setSettingsEditing(false);
   }
 
@@ -438,6 +443,16 @@ export default function Home() {
   async function removeQueueItem(id: number) {
     await fetch('/api/queue/item', { method: 'DELETE', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id }) });
     fetchQueue();
+  }
+
+  async function retryQueueItem(id: number) {
+    // Reset to pending with a new time 2 minutes from now so the worker picks it up immediately
+    const soon = new Date(Date.now() + 2 * 60 * 1000).toISOString();
+    await fetch('/api/queue/item', {
+      method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id, scheduled_at: soon }),
+    });
+    await fetchQueue();
   }
 
   async function rescheduleQueueItem(id: number, dateStr: string, timeStr: string) {
@@ -589,19 +604,18 @@ export default function Home() {
 
               {slideshow && (
                 <>
-                  {/* Push to TikTok */}
+                  {/* Save to Queue */}
                   {pushScheduledAt ? (
                     <div className="bg-green-50 border border-green-200 rounded-xl px-4 py-3 space-y-1">
-                      <p className="text-green-700 text-xs font-bold">✓ Queued for TikTok</p>
-                      <p className="text-green-600 text-[11px]">Scheduled: {new Date(pushScheduledAt).toLocaleString([], { weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}</p>
+                      <p className="text-green-700 text-xs font-bold">✓ Saved to Queue</p>
                       <button onClick={pushCurrent} disabled={pushing} className="text-[10px] text-green-600 underline hover:text-green-800 mt-1">
-                        Push Again
+                        Save Again
                       </button>
                     </div>
                   ) : (
                     <button onClick={pushCurrent} disabled={pushing}
-                      className="w-full text-white font-bold text-sm py-3 rounded-xl transition-all disabled:opacity-50 flex items-center justify-center gap-2" style={{ backgroundColor: '#fe2c55' }}>
-                      {pushing ? <><Spinner /> Rendering &amp; queuing…</> : '▶ Push to TikTok'}
+                      className="w-full bg-black text-white font-bold text-sm py-3 rounded-xl transition-all disabled:opacity-50 hover:bg-gray-800 flex items-center justify-center gap-2">
+                      {pushing ? <><Spinner /> Rendering…</> : '↓ Save to Queue'}
                     </button>
                   )}
                   {pushing && <p className="text-gray-400 text-xs text-center">Rendering 1080×1920 slides… ~30s</p>}
@@ -815,22 +829,21 @@ export default function Home() {
                     <p className="text-[10px] text-gray-400">{editingSlideshow.template} · {editingSlideshow.slides.length} slides</p>
                   </div>
 
-                  {/* Push to TikTok */}
+                  {/* Save to Queue */}
                   {libPushAt ? (
                     <div className="bg-green-50 border border-green-200 rounded-xl px-4 py-3 space-y-1">
-                      <p className="text-green-700 text-xs font-bold">✓ Queued for TikTok</p>
-                      <p className="text-green-600 text-[11px]">Scheduled: {new Date(libPushAt).toLocaleString([], { weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}</p>
+                      <p className="text-green-700 text-xs font-bold">✓ Saved to Queue</p>
                       <button onClick={pushLibraryItem} disabled={libPushing} className="text-[10px] text-green-600 underline hover:text-green-800 mt-1">
-                        Push Again
+                        Save Again
                       </button>
                     </div>
                   ) : (
                     <button
                       onClick={pushLibraryItem}
                       disabled={libPushing}
-                      className="w-full text-white font-bold text-sm py-3 rounded-xl transition-all disabled:opacity-50 flex items-center justify-center gap-2" style={{ backgroundColor: '#fe2c55' }}
+                      className="w-full bg-black text-white font-bold text-sm py-3 rounded-xl transition-all disabled:opacity-50 hover:bg-gray-800 flex items-center justify-center gap-2"
                     >
-                      {libPushing ? <><Spinner /> Rendering &amp; queuing…</> : '▶ Push to TikTok'}
+                      {libPushing ? <><Spinner /> Rendering…</> : '↓ Save to Queue'}
                     </button>
                   )}
                   {libPushing && <p className="text-gray-400 text-xs text-center">Rendering 1080×1920… ~30s</p>}
@@ -960,278 +973,80 @@ export default function Home() {
 
       {/* ── QUEUE TAB ──────────────────────────────────────────────────── */}
       {activeTab === 'queue' && (() => {
-        const totalPending = queueItems.filter(i => i.status === 'pending').length;
-        const totalPosted  = queueItems.filter(i => i.status === 'posted').length;
-        const totalFailed  = queueItems.filter(i => i.status === 'failed').length;
-        const nextItem     = queueItems
-          .filter(i => i.status === 'pending')
-          .sort((a, b) => a.scheduled_at.localeCompare(b.scheduled_at))[0];
-
+        const ready = queueItems.filter(i => i.status === 'pending' || i.status === 'failed');
+        const done  = queueItems.filter(i => i.status === 'posted');
+        const activeList = queueSubTab === 'ready' ? ready : done;
         return (
-          <div className="flex-1 w-full" style={{ background: '#0d0d0d' }}>
-            <div className="max-w-[1100px] mx-auto px-8 py-8 space-y-6">
+          <div className="flex-1 w-full bg-white">
+            <div className="max-w-[800px] mx-auto px-8 py-10 space-y-6">
 
-              {/* ── Top bar: status + actions ── */}
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <div className={`w-2 h-2 rounded-full ${chromeConnected ? 'bg-green-400' : 'bg-red-500'}`}
-                    style={chromeConnected ? { boxShadow: '0 0 8px 2px rgba(74,222,128,0.6)' } : {}} />
-                  <span className="text-xs font-mono text-gray-400 uppercase tracking-widest">
-                    {chromeConnected ? 'Automation online' : 'Automation offline'}
-                  </span>
-                  {!chromeConnected && (
-                    <button onClick={launchChrome} disabled={chromeLaunching}
-                      className="text-xs text-gray-300 border border-gray-700 rounded-lg px-3 py-1 hover:border-gray-500 hover:text-white transition-colors disabled:opacity-40 flex items-center gap-1.5">
-                      {chromeLaunching ? <><Spinner cls="w-3 h-3" /> Launching…</> : 'Launch Chrome'}
-                    </button>
-                  )}
-                  <button onClick={checkChrome} className="text-[10px] text-gray-600 hover:text-gray-400 transition-colors">
-                    check
+              {/* ── Sub-tabs ── */}
+              <div className="flex items-center gap-1 p-1 rounded-xl w-fit bg-gray-100 border border-gray-200">
+                {(['ready', 'downloaded'] as const).map(tab => (
+                  <button
+                    key={tab}
+                    onClick={() => setQueueSubTab(tab)}
+                    className="px-5 py-2 rounded-lg text-sm font-medium transition-all"
+                    style={queueSubTab === tab
+                      ? { background: '#fff', color: '#000', boxShadow: '0 1px 3px rgba(0,0,0,0.1)' }
+                      : { color: '#9ca3af' }}
+                  >
+                    {tab === 'ready' ? `Ready${ready.length > 0 ? ` (${ready.length})` : ''}` : `Downloaded${done.length > 0 ? ` (${done.length})` : ''}`}
                   </button>
-                </div>
-                <button onClick={() => { fetchQueue(); checkChrome(); }}
-                  className="text-[10px] font-mono text-gray-600 hover:text-gray-300 transition-colors uppercase tracking-widest">
-                  ↻ refresh
-                </button>
-              </div>
-
-              {/* ── Stat cards ── */}
-              <div className="grid grid-cols-4 gap-3">
-                {[
-                  { label: 'Queued',  value: totalPending, color: 'text-white' },
-                  { label: 'Posted',  value: totalPosted,  color: 'text-green-400' },
-                  { label: 'Failed',  value: totalFailed,  color: totalFailed > 0 ? 'text-red-400' : 'text-gray-600' },
-                  { label: 'Per Day', value: queueSettings.posts_per_day, color: 'text-sky-400' },
-                ].map(({ label, value, color }) => (
-                  <div key={label} className="rounded-2xl p-5 flex flex-col gap-1"
-                    style={{ background: '#161616', border: '1px solid #222' }}>
-                    <p className={`text-3xl font-black ${color}`}>{value}</p>
-                    <p className="text-[10px] uppercase tracking-widest text-gray-600">{label}</p>
-                  </div>
                 ))}
               </div>
 
-              {/* ── Next post + schedule row ── */}
-              <div className="grid grid-cols-2 gap-3">
-                {/* Next post */}
-                <div className="rounded-2xl p-5 space-y-2" style={{ background: '#161616', border: '1px solid #222' }}>
-                  <p className="text-[10px] uppercase tracking-widest text-gray-600">Next Post</p>
-                  {nextItem ? (
+              {/* ── Download All button (ready tab only) ── */}
+              {queueSubTab === 'ready' && (
+                <button
+                  disabled={ready.length === 0}
+                  onClick={async () => {
+                    const res = await fetch('/api/queue/download', { method: 'POST' });
+                    const data = await res.json();
+                    if (data.error) alert(data.error);
+                    else { fetchQueue(); setQueueSubTab('downloaded'); }
+                  }}
+                  className="w-full bg-black text-white font-bold text-base py-4 rounded-xl hover:bg-gray-800 transition-colors disabled:opacity-25 disabled:cursor-not-allowed"
+                >
+                  ↓ Download All Slideshows
+                </button>
+              )}
+
+              {/* ── List ── */}
+              {activeList.length > 0 ? (
+                <div className="space-y-2">
+                  {activeList.map(item => (
+                    <div key={item.id} className="rounded-xl px-4 py-3.5 flex items-center gap-4 group bg-white border border-gray-200 hover:border-gray-300 transition-colors">
+                      <div className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${queueSubTab === 'downloaded' ? 'bg-green-500' : 'bg-gray-400'}`} />
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm text-gray-800 font-medium truncate">{item.title}</p>
+                        <p className="text-[11px] text-gray-400 mt-0.5">
+                          {item.slide_paths.length} slides{item.caption ? ` · ${item.caption}` : ''}
+                        </p>
+                      </div>
+                      <button onClick={() => removeQueueItem(item.id)}
+                        className="text-gray-300 hover:text-red-400 transition-colors text-xl leading-none opacity-0 group-hover:opacity-100 flex-shrink-0"
+                        title="Remove">×</button>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="rounded-2xl p-16 text-center space-y-4 border border-gray-200">
+                  <p className="text-5xl opacity-10">↓</p>
+                  {queueSubTab === 'ready' ? (
                     <>
-                      <p className="text-white font-semibold text-sm leading-snug truncate">{nextItem.title}</p>
-                      <p className="text-2xl font-black text-white font-mono">{fmtTime(nextItem.scheduled_at)}</p>
-                      <p className="text-[10px] text-gray-500">{fmtDay(localDateKey(nextItem.scheduled_at))}</p>
+                      <p className="text-gray-400 text-sm">No slideshows queued yet.</p>
+                      <button onClick={() => setActiveTab('library')}
+                        className="text-xs text-gray-400 hover:text-black transition-colors underline underline-offset-2">
+                        Go to Library →
+                      </button>
                     </>
                   ) : (
-                    <p className="text-gray-600 text-sm pt-1">Nothing scheduled</p>
+                    <p className="text-gray-400 text-sm">Nothing downloaded yet.</p>
                   )}
                 </div>
+              )}
 
-                {/* Schedule config */}
-                <div className="rounded-2xl p-5 space-y-3" style={{ background: '#161616', border: '1px solid #222' }}>
-                  <div className="flex items-center justify-between">
-                    <p className="text-[10px] uppercase tracking-widest text-gray-600">Post Times</p>
-                    {!settingsEditing ? (
-                      <button onClick={() => { setSettingsEditing(true); setEditPpd(queueSettings.posts_per_day); setEditTimes([...queueSettings.post_times]); }}
-                        className="text-[10px] text-gray-600 hover:text-gray-300 border border-gray-700 rounded px-2 py-0.5 transition-colors">
-                        edit
-                      </button>
-                    ) : (
-                      <div className="flex gap-2">
-                        <button onClick={() => setSettingsEditing(false)}
-                          className="text-[10px] text-gray-600 hover:text-gray-300 transition-colors">cancel</button>
-                        <button onClick={saveQueueSettings}
-                          className="text-[10px] text-green-400 hover:text-green-300 border border-green-800 rounded px-2 py-0.5 transition-colors">save</button>
-                      </div>
-                    )}
-                  </div>
-
-                  {!settingsEditing ? (
-                    <div className="flex flex-wrap gap-1.5">
-                      {queueSettings.post_times.map(t => (
-                        <span key={t} className="text-[11px] font-mono text-gray-300 rounded-lg px-2.5 py-1"
-                          style={{ background: '#1f1f1f', border: '1px solid #2a2a2a' }}>{t}</span>
-                      ))}
-                    </div>
-                  ) : (
-                    <div className="space-y-2">
-                      <div className="flex items-center gap-2">
-                        <span className="text-[10px] text-gray-600">posts/day</span>
-                        <input type="number" min={1} max={12} value={editPpd}
-                          onChange={e => setEditPpd(Math.min(12, Math.max(1, Number(e.target.value))))}
-                          className="w-14 text-xs font-bold text-center text-white rounded px-2 py-1 focus:outline-none"
-                          style={{ background: '#1f1f1f', border: '1px solid #333' }} />
-                      </div>
-                      <div className="flex flex-wrap gap-1.5">
-                        {editTimes.map((t, i) => (
-                          <div key={i} className="flex items-center gap-1 rounded-lg px-2 py-1"
-                            style={{ background: '#1f1f1f', border: '1px solid #2a2a2a' }}>
-                            <input type="time" value={t}
-                              onChange={e => setEditTimes(prev => prev.map((v, j) => j === i ? e.target.value : v))}
-                              className="text-[11px] font-mono text-gray-300 bg-transparent focus:outline-none w-20" />
-                            <button onClick={() => setEditTimes(prev => prev.filter((_, j) => j !== i))}
-                              className="text-gray-700 hover:text-red-400 transition-colors text-sm leading-none">×</button>
-                          </div>
-                        ))}
-                        <button onClick={() => setEditTimes(prev => [...prev, '12:00'].sort())}
-                          className="text-[10px] text-gray-600 hover:text-gray-400 rounded-lg px-2.5 py-1 transition-colors"
-                          style={{ border: '1px dashed #333' }}>+ add</button>
-                      </div>
-                    </div>
-                  )}
-                </div>
-              </div>
-
-              {/* ── Queue feed ── */}
-              <div className="space-y-3">
-                <p className="text-[10px] uppercase tracking-widest text-gray-600 font-mono">Mission Log</p>
-
-                {queueItems.length === 0 ? (
-                  <div className="rounded-2xl p-12 text-center space-y-3" style={{ background: '#161616', border: '1px solid #222' }}>
-                    <p className="text-4xl opacity-10">▶</p>
-                    <p className="text-gray-600 text-sm">Queue is empty — push a slideshow from Library to begin.</p>
-                    <button onClick={() => setActiveTab('library')}
-                      className="text-xs text-gray-500 hover:text-white transition-colors underline underline-offset-2">
-                      Go to Library →
-                    </button>
-                  </div>
-                ) : (
-                  <div className="space-y-5">
-                    {Object.entries(queueByDay).sort(([a], [b]) => a.localeCompare(b)).map(([day, items]) => (
-                      <div key={day} className="space-y-1.5">
-                        {/* Day header */}
-                        <div className="flex items-center gap-3 pb-1">
-                          <span className="text-xs font-bold text-gray-300">{fmtDay(day)}</span>
-                          <span className="text-[10px] font-mono text-gray-700">{day}</span>
-                          <div className="flex-1 border-t" style={{ borderColor: '#1e1e1e' }} />
-                          <span className="text-[10px] text-gray-700">{items.length} post{items.length !== 1 ? 's' : ''}</span>
-                        </div>
-
-                        {/* Items */}
-                        {items.sort((a, b) => a.scheduled_at.localeCompare(b.scheduled_at)).map(item => {
-                          const isEditingThis = editingScheduleId === item.id;
-                          const canEdit = item.status === 'pending' || item.status === 'failed';
-                          return (
-                          <div key={item.id} className="rounded-xl px-4 py-3 group transition-all"
-                            style={{
-                              background: item.status === 'posted'  ? 'rgba(74,222,128,0.05)' :
-                                          item.status === 'posting' ? 'rgba(96,165,250,0.05)' :
-                                          item.status === 'failed'  ? 'rgba(248,113,113,0.05)' : '#161616',
-                              border: `1px solid ${
-                                isEditingThis     ? 'rgba(250,204,21,0.4)' :
-                                item.status === 'posted'  ? 'rgba(74,222,128,0.15)' :
-                                item.status === 'posting' ? 'rgba(96,165,250,0.2)' :
-                                item.status === 'failed'  ? 'rgba(248,113,113,0.2)' : '#1f1f1f'
-                              }`,
-                            }}>
-
-                            {/* Main row */}
-                            <div className="flex items-center gap-4">
-                              {/* Time — click to edit */}
-                              <div className="w-16 flex-shrink-0 text-right">
-                                {canEdit ? (
-                                  <button
-                                    onClick={() => {
-                                      if (isEditingThis) { setEditingScheduleId(null); return; }
-                                      const d = new Date(item.scheduled_at);
-                                      // Use local time components for both so they stay in the same timezone
-                                      const localDate = [
-                                        d.getFullYear(),
-                                        String(d.getMonth() + 1).padStart(2, '0'),
-                                        String(d.getDate()).padStart(2, '0'),
-                                      ].join('-');
-                                      const localTime = [
-                                        String(d.getHours()).padStart(2, '0'),
-                                        String(d.getMinutes()).padStart(2, '0'),
-                                      ].join(':');
-                                      setEditSchedDate(localDate);
-                                      setEditSchedTime(localTime);
-                                      setEditingScheduleId(item.id);
-                                    }}
-                                    className="text-xs font-mono font-bold text-gray-500 hover:text-yellow-400 transition-colors underline underline-offset-2 decoration-dotted"
-                                    title="Click to reschedule"
-                                  >{fmtTime(item.scheduled_at)}</button>
-                                ) : (
-                                  <span className={`text-xs font-mono font-bold ${
-                                    item.status === 'posted'  ? 'text-green-400' :
-                                    item.status === 'posting' ? 'text-blue-400' : 'text-gray-500'
-                                  }`}>{fmtTime(item.scheduled_at)}</span>
-                                )}
-                              </div>
-
-                              {/* Status dot */}
-                              <div className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${
-                                item.status === 'posted'  ? 'bg-green-400' :
-                                item.status === 'posting' ? 'bg-blue-400' :
-                                item.status === 'failed'  ? 'bg-red-400' : 'bg-gray-700'
-                              }`} style={item.status === 'posting' ? { boxShadow: '0 0 6px 2px rgba(96,165,250,0.5)' } : {}} />
-
-                              {/* Title */}
-                              <div className="flex-1 min-w-0">
-                                <p className="text-sm text-gray-200 font-medium truncate">{item.title}</p>
-                                {item.error_msg && (
-                                  <p className="text-[10px] text-red-400 mt-0.5 truncate">{item.error_msg}</p>
-                                )}
-                              </div>
-
-                              {/* Status badge */}
-                              <span className={`text-[10px] font-mono uppercase tracking-widest px-2 py-0.5 rounded flex-shrink-0 ${
-                                item.status === 'posted'  ? 'text-green-400 bg-green-400/10' :
-                                item.status === 'posting' ? 'text-blue-400 bg-blue-400/10' :
-                                item.status === 'failed'  ? 'text-red-400 bg-red-400/10' :
-                                'text-gray-600 bg-gray-800'
-                              }`}>
-                                {item.status === 'posting' ? <span className="flex items-center gap-1"><Spinner cls="w-2.5 h-2.5" /> live</span> : item.status}
-                              </span>
-
-                              {/* Remove */}
-                              {canEdit && (
-                                <button onClick={() => removeQueueItem(item.id)}
-                                  className="text-gray-700 hover:text-red-400 transition-colors text-lg leading-none opacity-0 group-hover:opacity-100 flex-shrink-0"
-                                  title="Remove">×</button>
-                              )}
-                            </div>
-
-                            {/* Inline reschedule editor */}
-                            {isEditingThis && (
-                              <div className="mt-3 flex items-center gap-2 pl-20">
-                                <input
-                                  type="date"
-                                  value={editSchedDate}
-                                  onChange={e => setEditSchedDate(e.target.value)}
-                                  className="text-xs font-mono text-gray-300 rounded-lg px-2.5 py-1.5 focus:outline-none focus:ring-1 focus:ring-yellow-500/50"
-                                  style={{ background: '#1f1f1f', border: '1px solid #333' }}
-                                />
-                                <input
-                                  type="time"
-                                  value={editSchedTime}
-                                  onChange={e => setEditSchedTime(e.target.value)}
-                                  className="text-xs font-mono text-gray-300 rounded-lg px-2.5 py-1.5 focus:outline-none focus:ring-1 focus:ring-yellow-500/50"
-                                  style={{ background: '#1f1f1f', border: '1px solid #333' }}
-                                />
-                                <button
-                                  onClick={async () => { await rescheduleQueueItem(item.id, editSchedDate, editSchedTime); setEditingScheduleId(null); }}
-                                  className="text-xs font-semibold text-yellow-400 hover:text-yellow-300 border border-yellow-500/30 rounded-lg px-3 py-1.5 transition-colors"
-                                  style={{ background: 'rgba(250,204,21,0.08)' }}
-                                >
-                                  Save
-                                </button>
-                                <button
-                                  onClick={() => setEditingScheduleId(null)}
-                                  className="text-xs text-gray-600 hover:text-gray-400 transition-colors"
-                                >
-                                  cancel
-                                </button>
-                              </div>
-                            )}
-                          </div>
-                          );
-                        })}
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
             </div>
           </div>
         );

@@ -18,6 +18,11 @@ export function getDb(): Database.Database {
 }
 
 function migrate(db: Database.Database) {
+  // Add notify_phone to existing DBs that were created before this column existed
+  try {
+    db.exec(`ALTER TABLE queue_settings ADD COLUMN notify_phone TEXT NOT NULL DEFAULT '+12035363028'`);
+  } catch { /* column already exists */ }
+
   db.exec(`
     CREATE TABLE IF NOT EXISTS post_queue (
       id            INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -37,11 +42,12 @@ function migrate(db: Database.Database) {
     CREATE TABLE IF NOT EXISTS queue_settings (
       id            INTEGER PRIMARY KEY CHECK (id = 1),
       posts_per_day INTEGER NOT NULL DEFAULT 6,
-      post_times    TEXT NOT NULL DEFAULT '["09:00","11:00","13:00","15:00","17:00","19:00"]'
+      post_times    TEXT NOT NULL DEFAULT '["09:00","11:00","13:00","15:00","17:00","19:00"]',
+      notify_phone  TEXT NOT NULL DEFAULT '+12035363028'
     );
 
-    INSERT OR IGNORE INTO queue_settings (id, posts_per_day, post_times)
-    VALUES (1, 6, '["09:00","11:00","13:00","15:00","17:00","19:00"]');
+    INSERT OR IGNORE INTO queue_settings (id, posts_per_day, post_times, notify_phone)
+    VALUES (1, 6, '["09:00","11:00","13:00","15:00","17:00","19:00"]', '+12035363028');
 
     CREATE TABLE IF NOT EXISTS posts (
       id          INTEGER PRIMARY KEY AUTOINCREMENT,

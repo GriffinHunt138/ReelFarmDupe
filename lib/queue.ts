@@ -3,6 +3,7 @@ import { getDb } from './db';
 export interface QueueSettings {
   posts_per_day: number;
   post_times: string[]; // HH:MM strings, e.g. ["09:00","11:00"]
+  notify_phone: string; // phone number for iMessage delivery
 }
 
 export interface QueueItem {
@@ -23,15 +24,19 @@ export interface QueueItem {
 // ── Settings ───────────────────────────────────────────────────────────────
 export function getSettings(): QueueSettings {
   const row = getDb().prepare('SELECT * FROM queue_settings WHERE id = 1').get() as {
-    posts_per_day: number; post_times: string;
+    posts_per_day: number; post_times: string; notify_phone: string;
   };
-  return { posts_per_day: row.posts_per_day, post_times: JSON.parse(row.post_times) };
+  return {
+    posts_per_day: row.posts_per_day,
+    post_times: JSON.parse(row.post_times),
+    notify_phone: row.notify_phone ?? '+12035363028',
+  };
 }
 
 export function saveSettings(s: QueueSettings): void {
   getDb()
-    .prepare('UPDATE queue_settings SET posts_per_day = ?, post_times = ? WHERE id = 1')
-    .run(s.posts_per_day, JSON.stringify(s.post_times));
+    .prepare('UPDATE queue_settings SET posts_per_day = ?, post_times = ?, notify_phone = ? WHERE id = 1')
+    .run(s.posts_per_day, JSON.stringify(s.post_times), s.notify_phone);
 }
 
 // ── Slot calculation ───────────────────────────────────────────────────────
