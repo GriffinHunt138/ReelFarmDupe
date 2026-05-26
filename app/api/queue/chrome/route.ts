@@ -15,7 +15,7 @@ export async function POST() {
 
   // Launch Chrome with a dedicated user-data-dir so it runs as a fully separate
   // process (bypasses Chrome's singleton lock) with remote debugging enabled.
-  const profileDir = `${process.env.HOME}/.reelfarm-chrome-profile`;
+  const profileDir = `${process.env.HOME}/.faceless-chrome-profile`;
   const cmd = `"/Applications/Google Chrome.app/Contents/MacOS/Google Chrome" --remote-debugging-port=9222 --user-data-dir="${profileDir}" --no-first-run --no-default-browser-check &`;
   exec(cmd, (err) => {
     if (err) console.error('[chrome-launch]', err.message);

@@ -1,5 +1,5 @@
 {
-  "name": "reelfarmdupe",
+  "name": "faceless",
   "version": "0.1.0",
   "private": true,
   "scripts": {
@@ -10,6 +10,8 @@
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.96.0",
+    "@remotion/bundler": "^4.0.466",
+    "@remotion/renderer": "^4.0.466",
     "@types/better-sqlite3": "^7.6.13",
     "axios": "^1.16.1",
     "better-sqlite3": "^12.10.0",
@@ -17,6 +19,7 @@
     "playwright": "^1.60.0",
     "react": "19.2.4",
     "react-dom": "19.2.4",
+    "remotion": "^4.0.466",
     "sharp": "^0.34.5"
   },
   "devDependencies": {

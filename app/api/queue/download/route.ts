@@ -48,7 +48,7 @@ export async function POST() {
       updateQueueItem(item.id, { status: 'posted', posted_at: new Date().toISOString() });
     }
 
-    // Open the ReelFarm folder in Finder
+    // Open the Faceless folder in Finder
     await execAsync(`open "${DOWNLOAD_DIR}"`);
 
     return NextResponse.json({ ok: true, downloaded, errors, path: DOWNLOAD_DIR });

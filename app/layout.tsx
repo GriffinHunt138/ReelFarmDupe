@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "ReelFarm — TikTok Slideshow Generator",
+  title: "Faceless — TikTok Slideshow Generator",
   description: "AI-powered viral TikTok photo slideshow creator",
 };
 

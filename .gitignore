@@ -44,3 +44,6 @@ next-env.d.ts
 /outputs/
 /assets/images/
 /data/
+
+# User-supplied anatomy reference images (drop your photos here)
+/reference-input/

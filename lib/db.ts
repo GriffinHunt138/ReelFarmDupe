@@ -5,7 +5,7 @@ import fs from 'fs';
 const DATA_DIR = path.join(process.cwd(), 'data');
 if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
 
-const DB_PATH = path.join(DATA_DIR, 'reelfarm.db');
+const DB_PATH = path.join(DATA_DIR, 'faceless.db');
 
 let _db: Database.Database | null = null;
 
@@ -64,6 +64,18 @@ function migrate(db: Database.Database) {
       slides_json TEXT
     );
 
+    CREATE TABLE IF NOT EXISTS stability_jobs (
+      id          TEXT PRIMARY KEY,
+      status      TEXT NOT NULL DEFAULT 'pending',
+      step        TEXT,
+      progress    INTEGER NOT NULL DEFAULT 0,
+      topic       TEXT NOT NULL,
+      error       TEXT,
+      video_path  TEXT,
+      script      TEXT,
+      created_at  TEXT NOT NULL DEFAULT (datetime('now'))
+    );
+
     CREATE TABLE IF NOT EXISTS tiktok_auth (
       id           INTEGER PRIMARY KEY AUTOINCREMENT,
       access_token  TEXT NOT NULL,
@@ -73,6 +85,22 @@ function migrate(db: Database.Database) {
       avatar_url    TEXT,
       expires_at    TEXT,
       updated_at    TEXT NOT NULL DEFAULT (datetime('now'))
+    );
+
+    CREATE TABLE IF NOT EXISTS anatomy_clips (
+      id                TEXT PRIMARY KEY,
+      category          TEXT NOT NULL,
+      tags              TEXT NOT NULL,
+      label             TEXT NOT NULL,
+      prompt            TEXT NOT NULL,
+      status            TEXT NOT NULL DEFAULT 'pending',
+      higgsfield_job_id TEXT,
+      video_path        TEXT,
+      thumb_path        TEXT,
+      duration          REAL,
+      error             TEXT,
+      created_at        TEXT NOT NULL DEFAULT (datetime('now')),
+      updated_at        TEXT NOT NULL DEFAULT (datetime('now'))
     );
   `);
 }
@@ -102,6 +130,94 @@ export interface TikTokAuth {
   expires_at: string | null;
   updated_at: string;
 }
+
+export interface StabilityJobRow {
+  id: string;
+  status: string;
+  step: string | null;
+  progress: number;
+  topic: string;
+  error: string | null;
+  video_path: string | null;
+  script: string | null;
+  created_at: string;
+}
+
+export const stabilityJobs = {
+  create(id: string, topic: string): void {
+    getDb().prepare(
+      `INSERT INTO stability_jobs (id, topic, status, progress) VALUES (?, ?, 'pending', 0)`
+    ).run(id, topic);
+  },
+
+  update(id: string, data: Partial<Omit<StabilityJobRow, 'id' | 'created_at'>>): void {
+    const fields = Object.keys(data).map(k => `${k} = @${k}`).join(', ');
+    getDb().prepare(`UPDATE stability_jobs SET ${fields} WHERE id = @id`).run({ ...data, id });
+  },
+
+  get(id: string): StabilityJobRow | null {
+    return getDb().prepare('SELECT * FROM stability_jobs WHERE id = ?').get(id) as StabilityJobRow | null;
+  },
+
+  list(): StabilityJobRow[] {
+    return getDb().prepare('SELECT * FROM stability_jobs ORDER BY created_at DESC LIMIT 50').all() as StabilityJobRow[];
+  },
+};
+
+export interface AnatomyClipRow {
+  id: string;
+  category: string;
+  tags: string;         // JSON array string
+  label: string;
+  prompt: string;
+  status: 'pending' | 'generating' | 'ready' | 'error';
+  higgsfield_job_id: string | null;
+  video_path: string | null;
+  thumb_path: string | null;
+  duration: number | null;
+  error: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export const anatomyClips = {
+  upsert(clip: Omit<AnatomyClipRow, 'created_at' | 'updated_at'>): void {
+    getDb().prepare(`
+      INSERT OR REPLACE INTO anatomy_clips
+        (id, category, tags, label, prompt, status, higgsfield_job_id, video_path, thumb_path, duration, error)
+      VALUES
+        (@id, @category, @tags, @label, @prompt, @status, @higgsfield_job_id, @video_path, @thumb_path, @duration, @error)
+    `).run(clip);
+  },
+
+  update(id: string, data: Partial<Omit<AnatomyClipRow, 'id' | 'created_at'>>): void {
+    const fields = Object.keys(data).map(k => `${k} = @${k}`).join(', ');
+    const withTimestamp = { ...data, updated_at: new Date().toISOString(), id };
+    getDb().prepare(
+      `UPDATE anatomy_clips SET ${fields}, updated_at = @updated_at WHERE id = @id`
+    ).run(withTimestamp);
+  },
+
+  get(id: string): AnatomyClipRow | null {
+    return getDb().prepare('SELECT * FROM anatomy_clips WHERE id = ?').get(id) as AnatomyClipRow | null;
+  },
+
+  list(): AnatomyClipRow[] {
+    return getDb().prepare('SELECT * FROM anatomy_clips ORDER BY category, id').all() as AnatomyClipRow[];
+  },
+
+  listByCategory(category: string): AnatomyClipRow[] {
+    return getDb().prepare(
+      'SELECT * FROM anatomy_clips WHERE category = ? ORDER BY id'
+    ).all(category) as AnatomyClipRow[];
+  },
+
+  listReady(): AnatomyClipRow[] {
+    return getDb().prepare(
+      "SELECT * FROM anatomy_clips WHERE status = 'ready' ORDER BY category, id"
+    ).all() as AnatomyClipRow[];
+  },
+};
 
 export const db = {
   createPost(data: Omit<Post, 'id' | 'created_at'>): Post {

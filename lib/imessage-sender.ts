@@ -1,6 +1,6 @@
 /**
  * Delivers slideshow slides by:
- *   1. Copying PNGs into ~/iCloud Drive/ReelFarm/<title>/  (syncs to iPhone automatically)
+ *   1. Copying PNGs into ~/iCloud Drive/Faceless/<title>/  (syncs to iPhone automatically)
  *   2. Sending ONE short iMessage text so you know they're ready
  *
  * This avoids sending large files through iMessage (which corrupts the
@@ -20,7 +20,7 @@ const ICLOUD_ROOT = path.join(
   process.env.HOME ?? '/Users/griffinhunt',
   'Library/Mobile Documents/com~apple~CloudDocs'
 );
-const REELFARM_DIR = path.join(ICLOUD_ROOT, 'ReelFarm');
+const FACELESS_DIR = path.join(ICLOUD_ROOT, 'Faceless');
 
 async function sendTextViaiMessage(phone: string, message: string): Promise<void> {
   const escaped = message.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
@@ -31,7 +31,7 @@ tell application "Messages"
   send "${escaped}" to targetBuddy
 end tell
 `;
-  const tmp = `/tmp/reelfarm-as-${Date.now()}.applescript`;
+  const tmp = `/tmp/faceless-as-${Date.now()}.applescript`;
   fs.writeFileSync(tmp, script);
   try {
     await execFileAsync('osascript', [tmp]);
@@ -47,16 +47,16 @@ export async function sendSlideshowViaiMessage(item: QueueItem, phone: string): 
     throw new Error(`No slide files found. Expected: ${item.slide_paths.join(', ')}`);
   }
 
-  // ── 1. Copy slides into iCloud Drive/ReelFarm/<slug>/ ──────────────────────
+  // ── 1. Copy slides into iCloud Drive/Faceless/<slug>/ ──────────────────────
   const slug = item.title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
-  const destDir = path.join(REELFARM_DIR, slug);
+  const destDir = path.join(FACELESS_DIR, slug);
   fs.mkdirSync(destDir, { recursive: true });
 
   for (const src of slidePaths) {
     const dest = path.join(destDir, path.basename(src));
     fs.copyFileSync(src, dest);
   }
-  console.log(`[imessage] Copied ${slidePaths.length} slides → iCloud Drive/ReelFarm/${slug}/`);
+  console.log(`[imessage] Copied ${slidePaths.length} slides → iCloud Drive/Faceless/${slug}/`);
 
-  console.log(`[imessage] ✓ Slides ready in iCloud Drive/ReelFarm/${slug}/`);
+  console.log(`[imessage] ✓ Slides ready in iCloud Drive/Faceless/${slug}/`);
 }

@@ -1,7 +1,7 @@
 /**
  * Queue worker — automation disabled.
  * The queue is now a manual download list. Use the "Download All" button
- * in the Queue tab to copy slides to ~/Downloads/ReelFarm/.
+ * in the Queue tab to copy slides to ~/Downloads/Faceless/.
  */
 
 export async function processQueue(): Promise<{ processed: number; errors: string[] }> {

@@ -48,7 +48,22 @@
       "Bash(ps -p 1502 -o ppid=)",
       "Bash(xargs ps -p)",
       "Bash(ps -o pid,ppid,comm -p 1502)",
-      "Bash(osascript /tmp/test-imessage-direct.applescript)"
+      "Bash(osascript /tmp/test-imessage-direct.applescript)",
+      "Bash(sed -i '' 's/ReelFarm — TikTok Slideshow Generator/Faceless — TikTok Slideshow Generator/g' app/layout.tsx)",
+      "Bash(sed -i '' 's/\"name\": \"reelfarmdupe\"/\"name\": \"faceless\"/g' package.json)",
+      "Bash(sed -i '' 's/reelfarm\\\\.db/faceless.db/g' lib/db.ts)",
+      "Bash(sed -i '' 's/ReelFarm\\\\//Faceless\\\\//g; s/reelfarm-chrome-profile/faceless-chrome-profile/g' lib/queue-worker.ts)",
+      "Bash(sed -i '' 's/ReelFarm/Faceless/g; s/reelfarm-debug/faceless-debug/g' lib/tiktok-poster.ts)",
+      "Bash(mv /Users/griffinhunt/Desktop/reelfarmdupe /Users/griffinhunt/Desktop/faceless && echo \"done\")",
+      "Bash(ffmpeg -version)",
+      "Bash(brew install *)",
+      "Bash(mkdir -p /Users/griffinhunt/Desktop/faceless/app/api/stability/status/\\\\[id\\\\])",
+      "Bash(mkdir -p /Users/griffinhunt/Desktop/faceless/app/api/stability/video/\\\\[id\\\\])",
+      "Bash(pkill -f \"brew install\")",
+      "Bash(export PATH=\"/opt/homebrew/bin:$PATH\")",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\" http://localhost:3000/stability)",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\" http://localhost:3000)",
+      "Bash(grep -n \"warn\\\\|error\\\\|Error\" /tmp/faceless-dev.log | grep -v \"instrumentation\\\\|Edge Runtime\\\\|Node.js module\" | head -10)"
     ]
   }
 }

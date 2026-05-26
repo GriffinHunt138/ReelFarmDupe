@@ -29,7 +29,7 @@ export async function checkChromeConnected(): Promise<boolean> {
 // ── Screenshot helper ──────────────────────────────────────────────────────
 async function snap(page: Page, label: string) {
   try {
-    const p = path.join(os.tmpdir(), `reelfarm-debug-${label}-${Date.now()}.png`);
+    const p = path.join(os.tmpdir(), `faceless-debug-${label}-${Date.now()}.png`);
     await page.screenshot({ path: p, fullPage: false });
     console.log(`[tiktok-poster] screenshot: ${p}`);
   } catch { /* non-fatal */ }
@@ -38,7 +38,7 @@ async function snap(page: Page, label: string) {
 // ── Main posting function ──────────────────────────────────────────────────
 export async function postToTikTok(item: QueueItem): Promise<void> {
   if (!await checkChromeConnected()) {
-    throw new Error('Chrome is not running with remote debugging. Open ReelFarm → Queue and click "Launch Chrome".');
+    throw new Error('Chrome is not running with remote debugging. Open Faceless → Queue and click "Launch Chrome".');
   }
 
   const slidePaths = item.slide_paths.filter(p => fs.existsSync(p)).sort();
@@ -61,7 +61,7 @@ export async function postToTikTok(item: QueueItem): Promise<void> {
     // Verify we're on the upload page and logged in
     const currentUrl = page.url();
     if (currentUrl.includes('login') || currentUrl.includes('signup')) {
-      throw new Error('Not logged into TikTok. Open the ReelFarm Chrome window and log in first.');
+      throw new Error('Not logged into TikTok. Open the Faceless Chrome window and log in first.');
     }
 
     // ── 2. Switch to Photo mode ──────────────────────────────────────────
@@ -310,7 +310,7 @@ export async function postToTikTok(item: QueueItem): Promise<void> {
       await snap(page, '08-post-submit');
       // Still on upload page = definite failure
       if (finalUrl.includes('/upload') || finalUrl.includes('creator-center/upload')) {
-        throw new Error(`Post failed — still on upload page after submit. Check screenshot reelfarm-debug-08-post-submit.`);
+        throw new Error(`Post failed — still on upload page after submit. Check screenshot faceless-debug-08-post-submit.`);
       }
       // Navigated away — probably success
       console.log(`[tiktok-poster] Navigated to ${finalUrl} — assuming success`);
